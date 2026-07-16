@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Native — Living Blueprint</title>
+<style>
+  :root{
+    --bg:#131F3D; --panel:#0E1830; --node:#182A52; --node-hi:#22396e;
+    --line:#8FA7DE; --ink:#E2E9FA; --dim:#93A5CC;
+    --chat:#B78CFF; --ret:#6FE3FF; --ing:#FFC24B; --ship:#7DE8A0; --fail:#FF7B72;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --disp:"Futura","Avenir Next","Trebuchet MS",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    background-image:
+      linear-gradient(rgba(150,170,230,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(150,170,230,.06) 1px,transparent 1px);
+    background-size:28px 28px;
+    color:var(--ink);font-family:var(--disp);min-height:100vh;
+  }
+  header{padding:20px 16px 8px;max-width:980px;margin:0 auto}
+  header .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--chat);text-transform:uppercase}
+  header h1{font-size:clamp(22px,5vw,34px);font-weight:600;margin-top:6px}
+  header p{color:var(--dim);font-size:13px;margin-top:6px;max-width:640px;line-height:1.5}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;max-width:980px;margin:0 auto;position:sticky;top:0;z-index:30;background:linear-gradient(var(--bg) 82%,transparent)}
+  .controls button{
+    font-family:var(--mono);font-size:12px;padding:9px 13px;border-radius:999px;cursor:pointer;
+    background:var(--node);color:var(--ink);border:1px solid rgba(143,167,222,.45);
+    transition:transform .12s;
+  }
+  .controls button:hover{transform:translateY(-1px)}
+  .controls button:focus-visible{outline:2px solid var(--chat);outline-offset:2px}
+  .controls button[data-run="rag"]{border-color:var(--chat)}
+  .controls button[data-run="agent"]{border-color:var(--ret)}
+  .controls button[data-run="ingest"]{border-color:var(--ing)}
+  .controls button[data-run="ship"]{border-color:var(--ship)}
+  .controls button[data-run="fail"]{border-color:var(--fail)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 8px 16px}
+  svg{width:100%;height:auto;display:block}
+  .band{fill:none;stroke:rgba(143,167,222,.4);stroke-dasharray:6 6}
+  .bandlabel{font-family:var(--mono);font-size:13px;fill:var(--dim);letter-spacing:.18em}
+  .node rect{fill:var(--node);stroke:var(--line);stroke-width:1.2;rx:10;transition:fill .2s}
+  .node:hover rect{fill:var(--node-hi);cursor:pointer}
+  .node.active rect{fill:var(--node-hi);stroke-width:2.2}
+  .node.dead rect{stroke:var(--fail);fill:#3d2233}
+  .node text{fill:var(--ink);font-family:var(--disp);font-size:15px;font-weight:600;pointer-events:none}
+  .node .sub{fill:var(--dim);font-family:var(--mono);font-size:10.5px;font-weight:400}
+  .gpu{fill:rgba(183,140,255,.15);stroke:var(--chat);stroke-width:.8;rx:4}
+  .gpu-t{fill:var(--chat);font-family:var(--mono);font-size:9px;pointer-events:none}
+  .edge{fill:none;stroke:rgba(143,167,222,.26);stroke-width:1.4}
+  .pulse{filter:drop-shadow(0 0 6px currentColor)}
+  #console{
+    max-width:980px;margin:0 auto 40px;padding:14px 16px;border-top:1px solid rgba(143,167,222,.3);
+    font-family:var(--mono);font-size:12px;line-height:1.75;min-height:120px;color:var(--dim);
+  }
+  #console .t{color:var(--chat)}
+  #console div{opacity:0;animation:in .3s forwards}
+  @keyframes in{to{opacity:1}}
+  #sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel);
+    border-top:1.5px solid var(--line);border-radius:16px 16px 0 0;padding:18px 20px 26px;
+    transform:translateY(110%);transition:transform .25s ease;max-height:55vh;overflow:auto;
+  }
+  #sheet.open{transform:translateY(0)}
+  #sheet .cat{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--chat)}
+  #sheet h2{font-size:20px;margin:6px 0 8px}
+  #sheet p{font-size:14px;line-height:1.6}
+  #sheet .ex{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  #sheet button{position:absolute;top:12px;right:14px;background:none;border:1px solid rgba(143,167,222,.5);color:var(--ink);border-radius:999px;width:30px;height:30px;cursor:pointer;font-size:14px}
+  @media (prefers-reduced-motion:reduce){.pulse{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Interactive schematic · companion to the cloud native map</div>
+  <h1>The AI Native Blueprint</h1>
+  <p>The same cloud native foundation, with a model at the core: routing, GPU inference, RAG retrieval, agents with tools, eval-gated delivery, and observability that measures <em>quality</em>, not just latency.</p>
+</header>
+
+<div class="controls" role="group" aria-label="Simulations">
+  <button data-run="rag">▶ RAG chat</button>
+  <button data-run="agent">▶ Agent run</button>
+  <button data-run="ingest">▶ Ingest docs</button>
+  <button data-run="ship">▶ Ship a prompt</button>
+  <button data-run="fail">▶ GPU outage</button>
+</div>
+
+<div class="wrap">
+  <svg id="map" viewBox="0 0 940 1430" aria-label="AI native architecture map"></svg>
+</div>
+
+<div id="console" aria-live="polite"><div><span class="t">ops&gt;</span> model online. run a scenario or tap a component.</div></div>
+
+<div id="sheet" role="dialog" aria-modal="false">
+  <button id="close" aria-label="Close">✕</button>
+  <div class="cat" id="s-cat"></div>
+  <h2 id="s-title"></h2>
+  <p id="s-body"></p>
+  <div class="ex" id="s-ex"></div>
+</div>
+
+<script>
+const NODES = [
+ ["user",30,50,240,70,"User","asks in natural language","Edge","The interface shifts from clicks and forms to conversation. Ambiguity is now an input your system must handle.","Chat, copilot, voice"],
+ ["app",350,50,240,70,"App / Chat UI","streams tokens","Edge","The product surface. Streams model output token by token, renders citations, collects thumbs-up/down feedback.","Web app, IDE plugin, Slack bot"],
+ ["apigw",670,50,240,70,"API Gateway","auth · rate limits","Edge","Classic cloud native front door — auth, quotas, abuse protection — now also enforcing per-user token budgets.","Kong, Envoy Gateway"],
+
+ ["cache",60,178,220,64,"Semantic Cache","match similar questions","AI Gateway","Caches answers by meaning, not exact string. 'Reset my password?' and 'how do I change my password' can hit the same entry — big cost saver.","GPTCache, Redis semantic"],
+ ["router",350,178,240,64,"LLM Router","pick model per request","AI Gateway","The new load balancer: routes each request to the right model — cheap+fast for simple asks, big model for hard ones — with fallbacks across providers.","LiteLLM, Portkey, OpenRouter"],
+ ["frontier",660,178,220,64,"Frontier APIs","external models","AI Gateway","Hosted models you call over API when you don't self-host — or as failover when your GPUs are saturated.","Anthropic, OpenAI, Gemini"],
+
+ ["infer",70,330,250,88,"Inference Server","self-hosted LLM on GPUs","GPU cluster","Serves open-weight models on GPU pods with continuous batching and KV-cache tricks. This is 'the app server' of AI native.","vLLM, TGI, KServe, Triton",1],
+ ["embed",360,330,240,88,"Embedding Service","tokenize → vectors","GPU cluster","Turns text into vectors — the coordinates of meaning. Internally it first tokenizes text into token IDs (each model's own tokenizer), then runs them through the model. Used for every query and every ingested chunk.","BGE, E5, OpenAI embeddings",1],
+ ["agent",70,462,250,88,"Agent Orchestrator","plan · act · loop","GPU cluster","Runs the reasoning loop: model proposes a step, orchestrator executes the tool call, feeds results back, repeats until done. The frontier of AI native.","LangGraph, Claude Agent SDK"],
+ ["guard",360,462,240,88,"Guardrails","safety · PII · injection","GPU cluster","Screens inputs and outputs: prompt-injection detection, PII redaction, topic policies. The new WAF.","Llama Guard, NeMo Guardrails"],
+ ["gpu",660,330,220,64,"GPU Scheduler","device plugin · MIG","GPU cluster","Kubernetes extended to treat GPUs as schedulable resources — slicing, sharing, and bin-packing scarce, expensive silicon.","NVIDIA operator, MIG"],
+ ["scale",660,455,220,64,"Autoscaler","scale on queue depth","GPU cluster","Scales inference pods on pending-request depth and token throughput — not CPU. GPUs are too costly to idle.","KEDA, HPA custom metrics"],
+
+ ["vdb",30,690,205,80,"Vector DB","nearest-neighbor search","Data","Stores embeddings and answers 'what's semantically closest to this question?' in milliseconds. The signature AI native datastore.","pgvector, Qdrant, Milvus, Pinecone"],
+ ["objstore",255,690,205,80,"Object Store","raw docs · model weights","Data","Holds source documents and multi-GB model weight files. Cheap, durable, boring — deliberately.","S3, GCS, MinIO"],
+ ["kafka",480,690,205,80,"Kafka","events · feedback stream","Data","Still the backbone: document-updated events trigger re-indexing; user feedback streams into eval datasets.","Kafka, NATS"],
+ ["pg",705,690,205,80,"Postgres","chats · users · metadata","Data","Conversations, users, permissions — transactional truth doesn't go away just because there's a model in the loop.","Postgres, RDS"],
+
+ ["ingest",30,830,270,72,"Ingestion Pipeline","chunk · embed · upsert","Async","The RAG supply chain: split documents into chunks, embed each, upsert into the vector DB. Often an Airflow/Argo DAG.","Airflow DAG, Kafka Connect"],
+ ["tools",330,830,270,72,"Tool APIs (MCP)","search · code · databases","Async","What agents can actually *do*: web search, code sandboxes, internal APIs — exposed through a standard protocol so any model can call them safely.","MCP servers, function calling"],
+ ["finetune",630,830,280,72,"Fine-tune Jobs","LoRA on your data","Async","Batch GPU jobs that adapt open models to your domain, producing new versions for the registry.","LoRA/PEFT, Axolotl, Ray"],
+
+ ["trace",60,975,240,64,"LLM Tracing","spans + tokens + prompts","Observability","Distributed tracing, AI edition: every span records the prompt, completion, token counts, and latency. APM for reasoning.","Langfuse, OTel GenAI, LangSmith"],
+ ["evals",330,975,180,64,"Eval Suite","scored test sets","Observability","The new unit tests: run prompts against golden datasets, score accuracy/groundedness with rubrics or judge models. Non-determinism demands this.","Promptfoo, Ragas, Braintrust"],
+ ["cost",522,975,180,64,"Cost Meter","$ per request","Observability","Tokens are money. Tracks spend per feature, user, and model so a runaway agent can't burn the budget.","LiteLLM spend logs, Kubecost"],
+ ["fb",714,975,180,64,"Human Feedback","👍👎 · corrections","Observability","Thumbs and edits flow back as labeled data — fuel for evals and fine-tuning. The loop that makes the product improve.","Feedback → Kafka → datasets"],
+ ["dash",330,1070,260,64,"Quality Dashboard","latency + accuracy + drift","Observability","Grafana's successor question: not just 'is it up?' but 'is it *right*?' — groundedness, refusal rate, drift over time.","Grafana + Langfuse"],
+ ["alert",620,1070,260,64,"Alerts","drift · spend · p99","Observability","Pages on-call for the new failure modes: quality regression, cost spikes, guardrail trip rate.","Alertmanager, PagerDuty"],
+
+ ["git",60,1240,190,64,"Git","prompts are code","Delivery","Prompts, agent configs, and eval sets are versioned like source code. A prompt tweak is a diff with a review.","GitHub, GitLab"],
+ ["ci",270,1240,190,64,"CI + Eval Gate","block on score drop","Delivery","CI runs the eval suite; if groundedness or accuracy drops below threshold, the merge is blocked. Tests for the non-deterministic era.","GitHub Actions + Promptfoo"],
+ ["mreg",480,1240,190,64,"Model Registry","versioned weights","Delivery","Immutable, versioned models and prompts — the AI equivalent of the container registry.","MLflow, HF Hub, W&B"],
+ ["cd",690,1240,190,64,"Argo CD","canary by quality","Delivery","GitOps still ships it — but canaries are judged on answer quality and cost, not just error rate.","Argo CD, Flux"],
+];
+
+const BANDS = [
+ [30,300,880,250,"GPU CLUSTER (KUBERNETES)"],
+ [30,945,880,215,"OBSERVABILITY — QUALITY, NOT JUST UPTIME"],
+ [30,1210,880,120,"DELIVERY · EVALS AS THE GATE"],
+];
+
+const svg=document.getElementById('map');
+const NS="http://www.w3.org/2000/svg";
+const N={};
+NODES.forEach(n=>N[n[0]]={id:n[0],x:n[1],y:n[2],w:n[3],h:n[4],name:n[5],sub:n[6],cat:n[7],body:n[8],ex:n[9],g:n[10]});
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+
+BANDS.forEach(b=>{
+  svg.appendChild(el('rect',{x:b[0],y:b[1],width:b[2],height:b[3],class:'band',rx:14}));
+  const t=el('text',{x:b[0]+14,y:b[1]+22,class:'bandlabel'});t.textContent=b[4];svg.appendChild(t);
+});
+
+function anchor(a,b){
+  const ac={x:a.x+a.w/2,y:a.y+a.h/2},bc={x:b.x+b.w/2,y:b.y+b.h/2};
+  const dx=bc.x-ac.x,dy=bc.y-ac.y;let p1,p2;
+  if(Math.abs(dy)>=Math.abs(dx)){p1={x:ac.x,y:dy>0?a.y+a.h:a.y};p2={x:bc.x,y:dy>0?b.y:b.y+b.h};}
+  else{p1={x:dx>0?a.x+a.w:a.x,y:ac.y};p2={x:dx>0?b.x:b.x+b.w,y:bc.y};}
+  return[p1,p2];
+}
+const EDGES=[["user","app"],["app","apigw"],["apigw","router"],["router","cache"],["router","frontier"],
+ ["router","guard"],["guard","embed"],["embed","vdb"],["guard","infer"],["router","agent"],["router","infer"],
+ ["agent","infer"],["agent","tools"],["infer","pg"],["gpu","infer"],["scale","infer"],["objstore","infer"],
+ ["objstore","ingest"],["kafka","ingest"],["ingest","embed"],["fb","kafka"],
+ ["finetune","objstore"],["finetune","mreg"],
+ ["infer","trace"],["trace","evals"],["trace","cost"],["trace","dash"],["evals","dash"],
+ ["cost","alert"],["fb","evals"],
+ ["git","ci"],["ci","evals"],["ci","mreg"],["mreg","cd"],["cd","router"]];
+const PATHS={};
+EDGES.forEach(([a,b])=>{
+  const [p1,p2]=anchor(N[a],N[b]);
+  const my=(p1.y+p2.y)/2;
+  const d=`M${p1.x},${p1.y} C${p1.x},${my} ${p2.x},${my} ${p2.x},${p2.y}`;
+  const p=el('path',{d,class:'edge'});svg.appendChild(p);
+  PATHS[a+">"+b]=p;
+});
+
+NODES.forEach(n=>{
+  const [id,x,y,w,h,name,sub]=n;
+  const g=el('g',{class:'node',id:'n-'+id,tabindex:0,role:'button'});
+  g.appendChild(el('rect',{x,y,width:w,height:h,rx:10}));
+  const t1=el('text',{x:x+14,y:y+(n[10]?30:h/2-2)});t1.textContent=name;g.appendChild(t1);
+  const t2=el('text',{x:x+14,y:y+(n[10]?48:h/2+16),class:'sub'});t2.textContent=sub;g.appendChild(t2);
+  if(n[10]){
+    g.appendChild(el('rect',{x:x+w-58,y:y+h-24,width:48,height:16,class:'gpu',rx:4}));
+    const st=el('text',{x:x+w-52,y:y+h-12,class:'gpu-t'});st.textContent='GPU ▮▮';g.appendChild(st);
+  }
+  g.addEventListener('click',()=>openSheet(id));
+  g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSheet(id);}});
+  svg.appendChild(g);
+});
+
+const sheet=document.getElementById('sheet');
+function openSheet(id){
+  const n=N[id];
+  document.getElementById('s-cat').textContent=n.cat;
+  document.getElementById('s-title').textContent=n.name;
+  document.getElementById('s-body').textContent=n.body;
+  document.getElementById('s-ex').textContent='examples: '+n.ex;
+  sheet.classList.add('open');
+}
+document.getElementById('close').onclick=()=>sheet.classList.remove('open');
+
+const cons=document.getElementById('console');
+function log(msg,color){
+  const d=document.createElement('div');
+  d.innerHTML=`<span class="t">ops&gt;</span> <span style="color:${color||'var(--dim)'}">${msg}</span>`;
+  cons.appendChild(d);
+  while(cons.children.length>9)cons.removeChild(cons.firstChild);
+}
+
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function pulse(a,b,color,dur=850){
+  return new Promise(res=>{
+    let path=PATHS[a+">"+b],rev=false;
+    if(!path){path=PATHS[b+">"+a];rev=true;}
+    highlight(b);
+    if(!path||reduce){setTimeout(res,reduce?150:dur);return;}
+    const L=path.getTotalLength();
+    const c=el('circle',{r:6,fill:color,class:'pulse'});
+    c.style.color=color;svg.appendChild(c);
+    const t0=performance.now();
+    (function step(t){
+      const k=Math.min((t-t0)/dur,1);
+      const p=path.getPointAtLength((rev?1-k:k)*L);
+      c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);
+      if(k<1)requestAnimationFrame(step);else{c.remove();res();}
+    })(t0);
+  });
+}
+function highlight(id){
+  const g=document.getElementById('n-'+id);if(!g)return;
+  g.classList.add('active');setTimeout(()=>g.classList.remove('active'),1100);
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let running=false;
+
+const SCEN={
+ async rag(){
+  const C='var(--chat)';
+  log('user: "what is our refund policy for annual plans?"','#B78CFF');
+  await pulse('user','app',C);await pulse('app','apigw',C,600);await pulse('apigw','router',C,600);
+  await pulse('router','cache',C,550);
+  log('semantic cache: MISS (0.79 similarity, below 0.92 threshold)');
+  await pulse('cache','router',C,450);
+  log('router: mid-tier model selected · guardrails first');
+  await pulse('router','guard',C,600);
+  log('guardrails: no injection, no PII ✓');
+  await pulse('guard','embed',C,600);
+  log('query tokenized (11 tokens) → embedded → 1024-dim vector');
+  await pulse('embed','vdb',C,600);
+  log('vector DB: top-4 chunks from policy.pdf (cosine 0.91)');
+  await pulse('vdb','embed',C,450);await pulse('embed','guard',C,450);
+  await pulse('guard','infer',C,650);
+  log('vLLM: tokenize prompt (system + 4 chunks + question, 1.8k tokens) · GPU batch #77');
+  highlight('gpu');await sleep(500);
+  await pulse('infer','pg',C,550);
+  log('answer grounded with [1][2] citations · turn saved to postgres');
+  await pulse('infer','guard',C,450);await pulse('guard','router',C,400);
+  await pulse('router','apigw',C,400);await pulse('apigw','app',C,400);await pulse('app','user',C,400);
+  log('streamed 214 tokens in 1.9s · $0.0011 · trace 7c2e','#7DE8A0');
+ },
+ async agent(){
+  const C='var(--ret)';
+  log("task: \"find last week's failed payments and draft a summary\"",'#6FE3FF');
+  await pulse('user','app',C,600);await pulse('app','apigw',C,500);await pulse('apigw','router',C,500);
+  await pulse('router','agent',C);
+  log('agent loop, step 1 — model plans');
+  await pulse('agent','infer',C,650);
+  log('model: "I need payment data" → tool_call: query_db');
+  await pulse('agent','tools',C,650);
+  log('MCP tool: SQL against payments (read-only, scoped creds)');
+  await pulse('tools','agent',C,550);
+  log('step 2 — 37 rows returned, model analyzes');
+  await pulse('agent','infer',C,650);
+  log('model: "3 failure patterns found" → tool_call: create_doc');
+  await pulse('agent','tools',C,650);await pulse('tools','agent',C,500);
+  log('step 3 — final synthesis, no more tools needed');
+  await pulse('agent','infer',C,650);
+  await pulse('agent','router',C,500);await pulse('router','apigw',C,400);await pulse('apigw','app',C,400);await pulse('app','user',C,400);
+  log('done in 3 loops · 11.4k tokens · every step traced','#7DE8A0');
+ },
+ async ingest(){
+  const C='var(--ing)';
+  log('event: docs-repo updated (14 files changed)','#FFC24B');
+  await pulse('kafka','ingest',C);
+  log('ingestion DAG triggered · fetching sources');
+  await pulse('objstore','ingest',C);
+  log('chunking: 14 docs → 312 chunks (512 tokens, 15% overlap)');
+  await pulse('ingest','embed',C);
+  log('embedding service: 312 chunks → vectors (GPU batch)');
+  highlight('gpu');
+  await pulse('embed','vdb',C);
+  log('vector DB: upserted 312, tombstoned 41 stale');
+  log('RAG knowledge is now 4 minutes fresh — no retraining, no redeploy','#7DE8A0');
+ },
+ async ship(){
+  const C='var(--ship)';
+  log('git push: "tighten refund-policy prompt, add 2 few-shots"','#7DE8A0');
+  await pulse('git','ci',C);
+  log('CI: build ✓ · now the real gate — evals');
+  await pulse('ci','evals',C);
+  log('eval suite: 240 golden Q&As · groundedness 0.94 (was 0.91) ✓');
+  log('refusal rate 2.1% ✓ · avg tokens −8% ✓ — gate PASSED');
+  await pulse('ci','mreg',C);
+  log('registry: prompt-pack v3.2 + model pin recorded');
+  await pulse('mreg','cd',C);
+  log('argo cd: canary — 10% of traffic to v3.2');
+  await pulse('cd','router',C);
+  log('router splits traffic · watching quality, not just errors');
+  await pulse('infer','trace',C,600);await pulse('trace','dash',C,600);
+  log('canary quality flat-to-better after 1h → promoted 100%','#7DE8A0');
+ },
+ async fail(){
+  log('⚠ GPU node pressure: OOM killed 2 inference pods','#FF7B72');
+  const g=document.getElementById('n-infer');
+  g.classList.add('dead');
+  await pulse('router','infer','var(--fail)',700);
+  log('router: self-hosted pool degraded, queue depth 340 and rising');
+  await pulse('cost','alert','var(--fail)',600);
+  log('alert: p99 latency 9s · paging on-call');
+  await pulse('router','frontier','var(--ship)',700);
+  log('failover: router shifts overflow traffic to frontier API');
+  log('users keep getting answers — at higher $/req (cost meter notes it)');
+  await pulse('scale','infer','var(--ship)',800);
+  g.classList.remove('dead');highlight('infer');
+  await pulse('objstore','infer','var(--ship)',800);
+  log('KEDA + GPU scheduler: 2 new pods placed, weights pulled from object store');
+  log('pool healthy · router drains back to self-hosted · spend normalizes','#7DE8A0');
+ }
+};
+
+document.querySelectorAll('.controls button').forEach(b=>{
+  b.addEventListener('click',async()=>{
+    if(running)return;running=true;
+    sheet.classList.remove('open');
+    try{await SCEN[b.dataset.run]();}finally{running=false;}
+  });
+});
+</script>
+</body>
+</html>

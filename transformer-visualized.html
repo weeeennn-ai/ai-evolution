@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inside a Transformer — Interactive Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F8FA;
+  --grid:#E4E8EF;
+  --ink:#141B2E;
+  --ink-soft:#4A5468;
+  --wire:#B9C2D4;
+  --signal:#0E5FD8;      /* data flowing */
+  --attn:#D8430E;        /* attention weight */
+  --value:#0E9E6E;       /* value vectors */
+  --card:#FFFFFF;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Inter',sans-serif;
+  --disp:'Fraunces',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  background:var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size:28px 28px;
+  min-height:100vh;
+}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px 96px}
+header{margin-bottom:28px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);font-weight:600;margin-bottom:10px}
+h1{font-family:var(--disp);font-size:clamp(28px,5vw,44px);font-weight:700;line-height:1.08;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--signal)}
+.sub{margin-top:12px;color:var(--ink-soft);font-size:15px;line-height:1.55;max-width:60ch}
+
+/* stepper */
+.stepper{display:flex;gap:6px;margin:26px 0 18px;flex-wrap:wrap}
+.step-btn{
+  font-family:var(--mono);font-size:11.5px;font-weight:500;
+  padding:8px 12px;border:1.5px solid var(--wire);border-radius:999px;
+  background:var(--card);color:var(--ink-soft);cursor:pointer;
+  transition:all .18s ease;
+}
+.step-btn:hover{border-color:var(--signal);color:var(--signal)}
+.step-btn.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.step-btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+.panel{
+  background:var(--card);border:1.5px solid var(--wire);border-radius:14px;
+  padding:26px 24px;box-shadow:0 2px 0 rgba(20,27,46,.05);
+}
+.panel h2{font-family:var(--disp);font-size:24px;font-weight:600;margin-bottom:6px}
+.panel .stage-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--attn);font-weight:600;margin-bottom:8px}
+.panel p.desc{color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin-bottom:20px;max-width:64ch}
+.viz{min-height:280px}
+
+/* tokens */
+.tok-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.tok{
+  font-family:var(--mono);font-size:14px;font-weight:500;
+  padding:8px 12px;border:1.5px solid var(--signal);border-radius:8px;
+  background:#EBF2FE;color:var(--signal);position:relative;
+  animation:pop .4s ease backwards;
+}
+.tok .tid{display:block;font-size:9.5px;color:var(--ink-soft);margin-top:3px;font-weight:400}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.92)}to{opacity:1;transform:none}}
+.sentence{font-family:var(--mono);font-size:15px;background:#F0F2F6;padding:12px 14px;border-radius:8px;border-left:3px solid var(--ink)}
+
+/* embedding bars */
+.emb-grid{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.emb-row{display:flex;align-items:center;gap:12px}
+.emb-label{font-family:var(--mono);font-size:12.5px;width:78px;flex-shrink:0;color:var(--ink);font-weight:500;text-align:right}
+.emb-bars{display:flex;gap:3px;flex:1}
+.emb-cell{height:26px;flex:1;border-radius:3px;min-width:8px;transition:transform .15s}
+.emb-cell:hover{transform:scaleY(1.25)}
+.legend{display:flex;gap:16px;margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:6px}
+.chip{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* attention */
+.attn-hint{font-family:var(--mono);font-size:11.5px;color:var(--attn);font-weight:600;margin-bottom:10px}
+.attn-stage{position:relative;padding:8px 0}
+svg.attn-svg{width:100%;height:auto;display:block}
+.attn-tok{cursor:pointer}
+.attn-tok rect{transition:all .2s}
+.attn-matrix{margin-top:22px;overflow-x:auto}
+table.mat{border-collapse:collapse;font-family:var(--mono);font-size:10.5px}
+table.mat th,table.mat td{padding:4px 6px;text-align:center;min-width:42px}
+table.mat th{color:var(--ink-soft);font-weight:500}
+table.mat td{border-radius:3px;color:var(--ink)}
+
+/* heads */
+.heads{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:6px}
+.head-card{border:1.5px solid var(--wire);border-radius:10px;padding:14px;background:#FBFCFE}
+.head-card h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
+.head-card p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:10px}
+.head-mini{display:flex;flex-direction:column;gap:3px}
+.mini-row{display:flex;gap:3px}
+.mini-cell{flex:1;height:12px;border-radius:2px}
+
+/* ffn */
+.ffn-flow{display:flex;align-items:center;justify-content:center;gap:0;margin:24px 0;flex-wrap:wrap}
+.ffn-box{border:1.5px solid var(--ink);border-radius:10px;padding:14px 16px;text-align:center;background:var(--card);font-family:var(--mono);font-size:12px;font-weight:500}
+.ffn-box small{display:block;font-size:10px;color:var(--ink-soft);margin-top:4px;font-weight:400}
+.ffn-arrow{font-family:var(--mono);color:var(--signal);padding:0 12px;font-size:18px;font-weight:600}
+.wide{background:#EBF2FE;border-color:var(--signal);color:var(--signal)}
+
+/* output probs */
+.prob-list{display:flex;flex-direction:column;gap:9px;margin-top:16px}
+.prob-row{display:flex;align-items:center;gap:12px}
+.prob-word{font-family:var(--mono);font-size:13.5px;width:84px;text-align:right;font-weight:500}
+.prob-track{flex:1;height:26px;background:#F0F2F6;border-radius:6px;overflow:hidden}
+.prob-fill{height:100%;border-radius:6px;background:var(--signal);display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-family:var(--mono);font-size:11px;font-weight:600;min-width:34px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.prob-fill.winner{background:var(--value)}
+.temp-row{display:flex;align-items:center;gap:12px;margin-top:22px;font-family:var(--mono);font-size:12px}
+input[type=range]{flex:1;accent-color:var(--signal)}
+
+/* nav */
+.nav{display:flex;justify-content:space-between;margin-top:20px}
+.nav button{
+  font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;
+  border-radius:10px;border:none;cursor:pointer;transition:transform .12s;
+}
+.nav button:active{transform:scale(.97)}
+.nav .next{background:var(--ink);color:#fff}
+.nav .prev{background:transparent;color:var(--ink-soft);border:1.5px solid var(--wire)}
+.nav button:disabled{opacity:.35;cursor:default}
+.nav button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+.note{margin-top:18px;padding:12px 14px;border-left:3px solid var(--value);background:#F0FAF6;border-radius:0 8px 8px 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.note strong{color:var(--ink)}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){.emb-label{width:60px;font-size:11px}.panel{padding:20px 16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Attention is all you need · 2017 → today</div>
+  <h1>Inside a <em>Transformer</em>, one stage at a time</h1>
+  <p class="sub">Follow a single sentence through the six stages that turn raw text into a next-token prediction. Every number below is illustrative but structurally faithful to how GPT-style decoder models actually work.</p>
+</header>
+
+<div class="stepper" id="stepper" role="tablist"></div>
+
+<div class="panel" id="panel">
+  <div class="stage-tag" id="stageTag"></div>
+  <h2 id="stageTitle"></h2>
+  <p class="desc" id="stageDesc"></p>
+  <div class="viz" id="viz"></div>
+  <div class="note" id="stageNote"></div>
+</div>
+
+<div class="nav">
+  <button class="prev" id="prevBtn">← Back</button>
+  <button class="next" id="nextBtn">Next stage →</button>
+</div>
+</div>
+
+<script>
+const TOKENS = ["The","cat","sat","on","the","mat","because","it","was"];
+const IDS    = [464, 3797, 3332, 319, 262, 2603, 780, 340, 373];
+
+// hand-crafted attention: row = query token, col = key token (causal: col<=row)
+// "it" (idx 7) attends strongly to "cat" (1) and "mat" (5) — coreference!
+const ATTN = [
+ [1.00,0,0,0,0,0,0,0,0],
+ [0.35,0.65,0,0,0,0,0,0,0],
+ [0.10,0.55,0.35,0,0,0,0,0,0],
+ [0.05,0.20,0.45,0.30,0,0,0,0,0],
+ [0.05,0.10,0.15,0.30,0.40,0,0,0,0],
+ [0.05,0.15,0.10,0.20,0.20,0.30,0,0,0],
+ [0.05,0.10,0.25,0.05,0.05,0.20,0.30,0,0],
+ [0.03,0.38,0.05,0.03,0.03,0.33,0.05,0.10,0],
+ [0.02,0.10,0.08,0.02,0.02,0.10,0.06,0.45,0.15],
+];
+
+const HEADS = [
+ {name:"Head 1 · Syntax", desc:"Tracks subject–verb structure: each verb looks back at its subject.", seed:1},
+ {name:"Head 2 · Coreference", desc:"Resolves pronouns: “it” pulls hard toward “cat” and “mat”.", seed:2},
+ {name:"Head 3 · Position", desc:"Mostly attends to the immediately previous token.", seed:3},
+ {name:"Head 4 · Semantics", desc:"Links related content words: “sat”, “mat”, “soft-ish” contexts.", seed:4},
+];
+
+function embColor(v){ // v in [-1,1] → blue↔white↔orange
+  if(v>=0){const t=v;return `rgb(${Math.round(255-241*t*0)+0}, ${Math.round(255-(255-95)*t)}, ${Math.round(255-(255-216)*t*0.0+ (255-(255-216))*0 )})`}
+  return '';
+}
+// simpler: interpolate
+function lerp(a,b,t){return a+(b-a)*t}
+function colFor(v){ // -1..1
+  const neg=[14,95,216], pos=[216,67,14], mid=[244,246,250];
+  const c = v<0 ? neg : pos, t=Math.abs(v);
+  return `rgb(${Math.round(lerp(mid[0],c[0],t))},${Math.round(lerp(mid[1],c[1],t))},${Math.round(lerp(mid[2],c[2],t))})`;
+}
+function rng(seed){let s=seed*9301+49297;return ()=>{s=(s*9301+49297)%233280;return s/233280}}
+
+const stages=[
+{
+ tag:"Stage 1 / 6 · Tokenization",
+ title:"Text becomes tokens",
+ desc:"The model never sees words — it sees integer IDs from a fixed vocabulary (~50k–200k entries). A byte-pair encoding (BPE) tokenizer splits text into frequent chunks.",
+ note:"<strong>Why it matters:</strong> tokenization is why models struggle with character-level tasks (counting letters, reversing strings) — the letters were never individually visible.",
+ render(el){
+   el.innerHTML=`<div class="sentence">"The cat sat on the mat because it was …"</div>
+   <div style="text-align:center;font-family:var(--mono);color:var(--signal);margin:10px 0;font-size:18px">↓ BPE tokenizer ↓</div>
+   <div class="tok-row">${TOKENS.map((t,i)=>`<span class="tok" style="animation-delay:${i*70}ms">${t}<span class="tid">id ${IDS[i]}</span></span>`).join('')}</div>`;
+ }
+},
+{
+ tag:"Stage 2 / 6 · Embeddings",
+ title:"Tokens become vectors",
+ desc:"Each token ID indexes a learned embedding table, producing a dense vector (e.g. 4,096 dims in a large model — 12 shown here). A positional signal is added so order isn't lost.",
+ note:"<strong>Key insight:</strong> similar tokens get similar vectors. “cat” and “mat” already sit closer to each other than to “because” — meaning is geometry.",
+ render(el){
+   const r=rng(7);
+   const rows=TOKENS.map((t,i)=>{
+     const cells=Array.from({length:12},(_,j)=>{
+       let v=(r()*2-1);
+       if((t==="cat"||t==="mat")&&j<4) v=0.6+r()*0.3; // visible similarity
+       return `<div class="emb-cell" style="background:${colFor(v)}" title="${v.toFixed(2)}"></div>`;
+     }).join('');
+     return `<div class="emb-row"><div class="emb-label">${t}</div><div class="emb-bars">${cells}</div></div>`;
+   }).join('');
+   el.innerHTML=`<div class="emb-grid">${rows}</div>
+   <div class="legend">
+     <span><span class="chip" style="background:${colFor(-0.9)}"></span> negative</span>
+     <span><span class="chip" style="background:${colFor(0)}"></span> ~zero</span>
+     <span><span class="chip" style="background:${colFor(0.9)}"></span> positive</span>
+     <span style="margin-left:auto">hover a cell for its value · note “cat” &amp; “mat” share a pattern</span>
+   </div>`;
+ }
+},
+{
+ tag:"Stage 3 / 6 · Self-attention",
+ title:"Every token looks at the context",
+ desc:"Each token builds a Query, and compares it against every earlier token's Key. The softmaxed scores decide how much of each token's Value gets mixed in. Click any token below.",
+ note:"<strong>Try “it”</strong> — the model resolves the pronoun by attending back to <strong>cat</strong> and <strong>mat</strong>. No rule was programmed; this behavior was learned from data.",
+ render(el){
+   el.innerHTML=`<div class="attn-hint" id="attnHint">▸ Click a token to see where it attends (showing: “it”)</div>
+   <div class="attn-stage"><svg class="attn-svg" id="attnSvg" viewBox="0 0 840 250"></svg></div>
+   <div class="attn-matrix" id="attnMat"></div>`;
+   drawAttn(7);
+   drawMatrix(7);
+ }
+},
+{
+ tag:"Stage 4 / 6 · Multi-head attention",
+ title:"Many perspectives in parallel",
+ desc:"Attention runs many times in parallel with independent learned projections. Each head specializes — one for syntax, one for coreference, one for position — and their outputs are concatenated and re-projected.",
+ note:"<strong>Scale:</strong> a large model may have 32–128 heads per layer × 30–100+ layers. Interpretability research (like Anthropic's) reverse-engineers what individual heads do.",
+ render(el){
+   el.innerHTML=`<div class="heads">${HEADS.map(h=>{
+     const r=rng(h.seed*13);
+     const rows=Array.from({length:6},(_,i)=>{
+       const cells=Array.from({length:6},(_,j)=>{
+         let v = j>i?0 : (h.seed===3 ? (j===i-1?0.85:j===i?0.15:0.02)
+                : h.seed===2 ? ((i===5&&(j===1))?0.8:r()*0.4)
+                : r()*(j<=i?0.8:0));
+         return `<div class="mini-cell" style="background:${v?`rgba(216,67,14,${Math.min(v,1)})`:'#F0F2F6'}"></div>`;
+       }).join('');
+       return `<div class="mini-row">${cells}</div>`;
+     }).join('');
+     return `<div class="head-card"><h4>${h.name}</h4><p>${h.desc}</p><div class="head-mini">${rows}</div></div>`;
+   }).join('')}</div>`;
+ }
+},
+{
+ tag:"Stage 5 / 6 · Feed-forward + residuals",
+ title:"Think, then move on",
+ desc:"After attention mixes information across tokens, an MLP processes each position independently — expanding to ~4× width, applying a nonlinearity, and projecting back. Residual connections and layer norm keep training stable. This whole block repeats dozens of times.",
+ note:"<strong>Rule of thumb:</strong> attention moves information <em>between</em> positions; the feed-forward network does the <em>computation</em> at each position. Most of a model's parameters live in these MLPs.",
+ render(el){
+   el.innerHTML=`<div class="ffn-flow">
+     <div class="ffn-box">x<small>d = 4096</small></div>
+     <div class="ffn-arrow">→</div>
+     <div class="ffn-box wide">W₁·x + GeLU<small>d = 16384</small></div>
+     <div class="ffn-arrow">→</div>
+     <div class="ffn-box">W₂·h<small>d = 4096</small></div>
+     <div class="ffn-arrow">⊕</div>
+     <div class="ffn-box">+ x<small>residual</small></div>
+   </div>
+   <div style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--ink-soft)">
+     ↻ &nbsp;repeat [ attention → FFN ] × N layers (N ≈ 32–120)
+   </div>`;
+ }
+},
+{
+ tag:"Stage 6 / 6 · Output",
+ title:"Predict the next token",
+ desc:"The final hidden state of the last position is projected against the vocabulary, giving one logit per token. Softmax turns logits into probabilities. Drag the temperature slider to see how sampling sharpness changes.",
+ note:"<strong>That's the whole trick.</strong> Everything a language model does — reasoning, code, conversation — emerges from repeatedly predicting the next token, at scale.",
+ render(el){
+   el.innerHTML=`<div class="sentence">"The cat sat on the mat because it was <span style="color:var(--attn)">▁</span>"</div>
+   <div class="prob-list" id="probs"></div>
+   <div class="temp-row">temperature <input type="range" id="temp" min="0.2" max="2" step="0.1" value="1"> <span id="tval">1.0</span></div>`;
+   renderProbs(1.0);
+   document.getElementById('temp').addEventListener('input',e=>{
+     document.getElementById('tval').textContent=(+e.target.value).toFixed(1);
+     renderProbs(+e.target.value);
+   });
+ }
+}
+];
+
+const LOGITS=[["soft",4.2],["comfortable",3.6],["warm",3.3],["there",2.4],["hungry",1.6],["purple",0.2]];
+function renderProbs(T){
+  const exps=LOGITS.map(([w,l])=>Math.exp(l/T));
+  const Z=exps.reduce((a,b)=>a+b,0);
+  const probs=LOGITS.map(([w],i)=>[w,exps[i]/Z]);
+  const max=Math.max(...probs.map(p=>p[1]));
+  document.getElementById('probs').innerHTML=probs.map(([w,p])=>`
+    <div class="prob-row"><div class="prob-word">${w}</div>
+    <div class="prob-track"><div class="prob-fill ${p===max?'winner':''}" style="width:${Math.max(p*100,4)}%">${(p*100).toFixed(1)}%</div></div></div>`).join('');
+}
+
+function drawAttn(q){
+  const svg=document.getElementById('attnSvg');
+  const n=TOKENS.length, W=840, pad=30, gap=(W-2*pad)/(n-1);
+  const yTop=40, yBot=210;
+  let lines='';
+  for(let k=0;k<=q;k++){
+    const w=ATTN[q][k]; if(w<0.02)continue;
+    const x1=pad+q*gap, x2=pad+k*gap;
+    const midY=(yTop+yBot)/2 - 40 - Math.abs(q-k)*4;
+    lines+=`<path d="M ${x1} ${yBot-14} Q ${(x1+x2)/2} ${midY} ${x2} ${yTop+14}"
+      fill="none" stroke="rgba(216,67,14,${0.15+w*0.85})" stroke-width="${1+w*7}" stroke-linecap="round"/>`;
+  }
+  const toks=(y,active)=>TOKENS.map((t,i)=>{
+    const x=pad+i*gap;
+    const isQ = active && i===q;
+    const w = active? 0 : (i<=q?ATTN[q][i]:0);
+    return `<g class="attn-tok" data-i="${i}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="attend from ${t}">
+      <rect x="-32" y="-14" width="64" height="28" rx="7"
+        fill="${isQ?'#141B2E':active?'#fff':w>0.25?'#FDE8DF':'#fff'}"
+        stroke="${isQ?'#141B2E':w>0.25?'#D8430E':'#B9C2D4'}" stroke-width="1.5"/>
+      <text text-anchor="middle" dy="4" font-family="JetBrains Mono" font-size="12"
+        fill="${isQ?'#fff':'#141B2E'}" font-weight="${isQ||w>0.25?'600':'400'}">${t}</text>
+    </g>`;
+  }).join('');
+  svg.innerHTML=`
+    <text x="6" y="${yTop-18}" font-family="JetBrains Mono" font-size="10" fill="#4A5468">KEYS (context being read)</text>
+    <text x="6" y="${yBot+30}" font-family="JetBrains Mono" font-size="10" fill="#4A5468">QUERIES (click to select)</text>
+    ${lines}${toks(yTop,false)}${toks(yBot,true)}`;
+  svg.querySelectorAll('g[data-i]').forEach(g=>{
+    const sel=()=>{const i=+g.dataset.i;
+      document.getElementById('attnHint').textContent=`▸ Showing attention from “${TOKENS[i]}”`;
+      drawAttn(i);drawMatrix(i);};
+    g.addEventListener('click',sel);
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sel()}});
+  });
+}
+function drawMatrix(q){
+  const head=`<tr><th></th>${TOKENS.map(t=>`<th>${t}</th>`).join('')}</tr>`;
+  const rows=ATTN.map((row,i)=>`<tr><th>${TOKENS[i]}</th>${row.map((v,j)=>
+    `<td style="background:rgba(216,67,14,${v*0.9});${i===q?'outline:2px solid #141B2E;outline-offset:-1px;':''}${j>i?'color:#C6CCD8':''}">${j>i?'—':v.toFixed(2)}</td>`).join('')}</tr>`).join('');
+  document.getElementById('attnMat').innerHTML=`<table class="mat">${head}${rows}</table>
+  <div style="font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:8px">Full attention matrix (rows = queries, — = masked future tokens in a causal/decoder model). Selected row outlined.</div>`;
+}
+
+// ---- controller ----
+let cur=0;
+const names=["Tokenize","Embed","Attention","Multi-head","Feed-forward","Output"];
+const stepper=document.getElementById('stepper');
+names.forEach((n,i)=>{
+  const b=document.createElement('button');
+  b.className='step-btn';b.textContent=`${i+1} · ${n}`;b.setAttribute('role','tab');
+  b.onclick=()=>go(i);stepper.appendChild(b);
+});
+function go(i){
+  cur=i;
+  const s=stages[i];
+  document.getElementById('stageTag').textContent=s.tag;
+  document.getElementById('stageTitle').textContent=s.title;
+  document.getElementById('stageDesc').textContent=s.desc;
+  document.getElementById('stageNote').innerHTML=s.note;
+  s.render(document.getElementById('viz'));
+  [...stepper.children].forEach((b,j)=>b.classList.toggle('active',j===i));
+  document.getElementById('prevBtn').disabled=i===0;
+  document.getElementById('nextBtn').textContent=i===stages.length-1?'Done ✓':'Next stage →';
+  document.getElementById('nextBtn').disabled=false;
+}
+document.getElementById('prevBtn').onclick=()=>cur>0&&go(cur-1);
+document.getElementById('nextBtn').onclick=()=>cur<stages.length-1?go(cur+1):null;
+go(0);
+</script>
+</body>
+</html>

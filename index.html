@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Evolution of AI — Interactive Perspectives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F8FA; --grid:#E4E8EF; --ink:#141B2E; --ink-soft:#4A5468;
+  --wire:#B9C2D4; --signal:#0E5FD8; --attn:#D8430E; --value:#0E9E6E; --gold:#B07D10;
+  --card:#FFFFFF;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif; --disp:'Fraunces',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);color:var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;min-height:100vh;
+}
+.wrap{max-width:860px;margin:0 auto;padding:48px 20px 80px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--signal);text-transform:uppercase}
+h1{font-family:var(--disp);font-size:clamp(30px,6vw,46px);font-weight:700;margin-top:10px;line-height:1.1}
+.lede{color:var(--ink-soft);font-size:15px;line-height:1.6;margin-top:14px;max-width:620px}
+.timeline{margin-top:44px;position:relative}
+.timeline::before{content:"";position:absolute;left:19px;top:8px;bottom:8px;width:2px;background:var(--wire)}
+.stop{position:relative;padding-left:56px;margin-bottom:26px}
+.stop .dot{
+  position:absolute;left:8px;top:22px;width:24px;height:24px;border-radius:50%;
+  background:var(--card);border:2px solid var(--accent,var(--signal));
+  font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent,var(--signal));
+  display:flex;align-items:center;justify-content:center;
+}
+.card{
+  display:block;background:var(--card);border:1px solid var(--grid);border-radius:12px;
+  padding:20px 22px;text-decoration:none;color:inherit;
+  box-shadow:0 1px 2px rgba(20,27,46,.05);
+  transition:transform .15s,box-shadow .15s,border-color .15s;
+}
+.card:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(20,27,46,.10);border-color:var(--accent,var(--signal))}
+.card .tag{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent,var(--signal))}
+.card h2{font-family:var(--disp);font-size:20px;font-weight:600;margin-top:6px}
+.card p{color:var(--ink-soft);font-size:13.5px;line-height:1.55;margin-top:6px}
+.card .go{font-family:var(--mono);font-size:11px;color:var(--accent,var(--signal));margin-top:10px;display:inline-block}
+footer{margin-top:40px;color:var(--ink-soft);font-family:var(--mono);font-size:11px;letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Interactive visual essays</div>
+  <h1>The Evolution of AI,<br>from Different Perspectives</h1>
+  <p class="lede">
+    One story, five vantage points: the infrastructure era that set the stage, the architecture
+    that changed everything, how a raw network becomes a language model, how human feedback shapes
+    it — and what applications look like when AI is native to the system.
+  </p>
+
+  <div class="timeline">
+    <div class="stop" style="--accent:#0E5FD8">
+      <div class="dot">1</div>
+      <a class="card" href="cloud-native-map.html">
+        <span class="tag">Perspective · Infrastructure</span>
+        <h2>Cloud Native — Living Blueprint</h2>
+        <p>The era that came first: services, events, deploys, chaos and telemetry — the distributed-systems substrate modern AI runs on.</p>
+        <span class="go">Explore →</span>
+      </a>
+    </div>
+
+    <div class="stop" style="--accent:#D8430E">
+      <div class="dot">2</div>
+      <a class="card" href="transformer-visualized.html">
+        <span class="tag">Perspective · Architecture</span>
+        <h2>Inside a Transformer</h2>
+        <p>An interactive walkthrough of the engine itself — tokens, embeddings, attention, and the forward pass, step by step.</p>
+        <span class="go">Explore →</span>
+      </a>
+    </div>
+
+    <div class="stop" style="--accent:#B07D10">
+      <div class="dot">3</div>
+      <a class="card" href="how-llm-becomes-llm_1.html">
+        <span class="tag">Perspective · Training</span>
+        <h2>How an LLM Becomes an LLM</h2>
+        <p>The full training pipeline: from raw internet text through pretraining, fine-tuning and alignment to a usable model.</p>
+        <span class="go">Explore →</span>
+      </a>
+    </div>
+
+    <div class="stop" style="--accent:#0E9E6E">
+      <div class="dot">4</div>
+      <a class="card" href="rlhf-visualized.html">
+        <span class="tag">Perspective · Alignment</span>
+        <h2>RLHF — Learning From Human Feedback</h2>
+        <p>How preference data, reward models and reinforcement learning turn a text predictor into a helpful assistant.</p>
+        <span class="go">Explore →</span>
+      </a>
+    </div>
+
+    <div class="stop" style="--accent:#7A3FD1">
+      <div class="dot">5</div>
+      <a class="card" href="ai-native-map_3.html">
+        <span class="tag">Perspective · Applications</span>
+        <h2>AI Native — Living Blueprint</h2>
+        <p>What software looks like when the model is the core: retrieval, ingestion, agents, and shipping loops in one living map.</p>
+        <span class="go">Explore →</span>
+      </a>
+    </div>
+  </div>
+
+  <footer>ai_evolution · interactive HTML, no build step — open any page directly</footer>
+</div>
+</body>
+</html>

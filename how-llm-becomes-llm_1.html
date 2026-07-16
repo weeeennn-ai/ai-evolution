@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How an LLM Becomes an LLM — The Full Training Pipeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F8FA; --grid:#E4E8EF; --ink:#141B2E; --ink-soft:#4A5468;
+  --wire:#B9C2D4; --signal:#0E5FD8; --attn:#D8430E; --value:#0E9E6E; --gold:#B07D10;
+  --card:#FFFFFF;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif; --disp:'Fraunces',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);color:var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;min-height:100vh;
+}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px 96px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);font-weight:600;margin-bottom:10px}
+h1{font-family:var(--disp);font-size:clamp(28px,5vw,44px);font-weight:700;line-height:1.08;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--value)}
+.sub{margin-top:12px;color:var(--ink-soft);font-size:15px;line-height:1.55;max-width:62ch}
+
+.stepper{display:flex;gap:6px;margin:26px 0 18px;flex-wrap:wrap}
+.step-btn{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:8px 12px;border:1.5px solid var(--wire);border-radius:999px;background:var(--card);color:var(--ink-soft);cursor:pointer;transition:all .18s ease}
+.step-btn:hover{border-color:var(--signal);color:var(--signal)}
+.step-btn.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.step-btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+.panel{background:var(--card);border:1.5px solid var(--wire);border-radius:14px;padding:26px 24px;box-shadow:0 2px 0 rgba(20,27,46,.05)}
+.panel h2{font-family:var(--disp);font-size:24px;font-weight:600;margin-bottom:6px}
+.stage-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--attn);font-weight:600;margin-bottom:8px}
+p.desc{color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin-bottom:20px;max-width:64ch}
+.viz{min-height:280px}
+.note{margin-top:18px;padding:12px 14px;border-left:3px solid var(--value);background:#F0FAF6;border-radius:0 8px 8px 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.note strong{color:var(--ink)}
+
+/* data composition */
+.data-bar{display:flex;height:52px;border-radius:10px;overflow:hidden;border:1.5px solid var(--ink);margin:14px 0 8px}
+.data-seg{display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10.5px;font-weight:600;color:#fff;transition:flex .5s ease;min-width:0;overflow:hidden;white-space:nowrap;cursor:default}
+.data-legend{display:flex;flex-wrap:wrap;gap:12px;font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:16px}
+.data-legend span{display:flex;gap:6px;align-items:center}
+.chip{width:11px;height:11px;border-radius:3px;display:inline-block;flex-shrink:0}
+.filter-flow{display:flex;align-items:center;justify-content:center;gap:0;flex-wrap:wrap;margin-top:20px}
+.f-box{border:1.5px solid var(--wire);border-radius:9px;padding:10px 13px;font-family:var(--mono);font-size:11.5px;text-align:center;background:#FBFCFE}
+.f-box b{display:block;font-size:14px}
+.f-arrow{font-family:var(--mono);color:var(--signal);padding:0 9px;font-size:15px;font-weight:600}
+
+/* pretraining */
+canvas{width:100%;border:1.5px solid var(--wire);border-radius:10px;background:#FBFCFE}
+.pt-controls{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+.pt-controls button{font-family:var(--sans);font-weight:600;font-size:13px;padding:9px 16px;border-radius:8px;border:none;background:var(--ink);color:#fff;cursor:pointer}
+.pt-sample{font-family:var(--mono);font-size:12.5px;background:#F0F2F6;border-radius:8px;padding:11px 13px;margin-top:12px;line-height:1.6;min-height:64px}
+.pt-sample .lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:4px}
+
+/* technique cards */
+.tech-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.tech-grid{grid-template-columns:1fr}}
+.tech-card{border:1.5px solid var(--wire);border-radius:10px;padding:15px;background:#FBFCFE}
+.tech-card h4{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:7px}
+.tech-card p{font-size:12.5px;color:var(--ink-soft);line-height:1.55}
+.tech-card .who{margin-top:9px;font-family:var(--mono);font-size:10px;color:var(--gold);font-weight:600}
+
+/* constitutional demo */
+.cai-step{border:1.5px solid var(--wire);border-radius:10px;padding:13px 15px;margin-bottom:10px;background:#FBFCFE;font-size:12.5px;line-height:1.6}
+.cai-step .who{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:inline-block;margin-bottom:6px;padding:2px 8px;border-radius:4px}
+.cai-step.hidden{display:none}
+.who.model{background:#EBF2FE;color:var(--signal)}
+.who.critique{background:#FDE8DF;color:var(--attn)}
+.who.revise{background:#E4F7EF;color:var(--value)}
+.who.const{background:#F7EEDB;color:var(--gold)}
+.cai-btn{font-family:var(--sans);font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;border:none;background:var(--ink);color:#fff;cursor:pointer;margin-top:4px}
+.cai-btn:disabled{opacity:.35;cursor:default}
+
+/* verifiable rewards */
+.vr-problem{font-family:var(--mono);font-size:13px;background:#F0F2F6;padding:12px 14px;border-radius:8px;border-left:3px solid var(--ink);margin-bottom:14px}
+.vr-attempts{display:flex;flex-direction:column;gap:9px}
+.vr-row{display:flex;gap:10px;align-items:stretch}
+.vr-think{flex:1;font-family:var(--mono);font-size:11.5px;background:#FBFCFE;border:1.5px solid var(--wire);border-radius:8px;padding:10px 12px;line-height:1.55;color:var(--ink-soft)}
+.vr-verdict{width:96px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:600;border-radius:8px}
+.vr-verdict.ok{background:#E4F7EF;color:var(--value);border:1.5px solid var(--value)}
+.vr-verdict.bad{background:#FDF0EA;color:var(--attn);border:1.5px solid var(--attn)}
+.vr-note{font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:12px;text-align:center}
+
+/* final map */
+.map-col{display:flex;flex-direction:column;gap:0;align-items:center}
+.map-phase{width:100%;border:1.5px solid var(--wire);border-radius:12px;padding:14px 16px;background:#FBFCFE}
+.map-phase h4{font-family:var(--disp);font-size:16px;margin-bottom:3px}
+.map-phase .ph{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-bottom:6px}
+.map-phase ul{list-style:none;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.9}
+.map-phase li::before{content:'▸ ';color:var(--signal)}
+.map-down{font-family:var(--mono);color:var(--signal);font-size:17px;padding:7px 0;font-weight:600}
+.map-phase.p1{border-color:var(--signal)} .map-phase.p1 .ph{color:var(--signal)}
+.map-phase.p2{border-color:var(--attn)} .map-phase.p2 .ph{color:var(--attn)}
+.map-phase.p3{border-color:var(--gold)} .map-phase.p3 .ph{color:var(--gold)}
+.map-phase.p4{border-color:var(--value);background:#F0FAF6} .map-phase.p4 .ph{color:var(--value)}
+
+.nav{display:flex;justify-content:space-between;margin-top:20px}
+.nav button{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;border-radius:10px;border:none;cursor:pointer;transition:transform .12s}
+.nav button:active{transform:scale(.97)}
+.nav .next{background:var(--ink);color:#fff}
+.nav .prev{background:transparent;color:var(--ink-soft);border:1.5px solid var(--wire)}
+.nav button:disabled{opacity:.35;cursor:default}
+
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){.panel{padding:20px 16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">The full pipeline · part 3 of the series</div>
+  <h1>How an LLM <em>becomes</em> an LLM</h1>
+  <p class="sub">From raw internet text to a reasoning assistant: the complete modern training recipe in six stages — pretraining, supervised fine-tuning, human and AI feedback, verifiable rewards, and the safety work in between.</p>
+</header>
+
+<div class="stepper" id="stepper"></div>
+
+<div class="panel">
+  <div class="stage-tag" id="stageTag"></div>
+  <h2 id="stageTitle"></h2>
+  <p class="desc" id="stageDesc"></p>
+  <div class="viz" id="viz"></div>
+  <div class="note" id="stageNote"></div>
+</div>
+
+<div class="nav">
+  <button class="prev" id="prevBtn">← Back</button>
+  <button class="next" id="nextBtn">Next stage →</button>
+</div>
+</div>
+
+<script>
+/* ============ STAGES ============ */
+const stages=[
+
+/* ---- 1. DATA ---- */
+{
+ tag:"Stage 1 / 6 · Data",
+ title:"Everything starts as a dataset",
+ desc:"Trillions of tokens of web pages, books, code, and papers — but the raw crawl is mostly unusable. Deduplication, quality filtering, toxicity removal, and careful mixture weighting turn ~100T raw tokens into a curated ~10–15T token diet. Hover the segments.",
+ note:"<strong>Data is destiny:</strong> mixture weights (how much code? how much of which languages?) shape a model's personality and skills more than most architecture choices. Labs guard their data recipes more closely than their model designs.",
+ render(el){
+  const segs=[["Web crawl",46,"#0E5FD8"],["Code",20,"#0E9E6E"],["Books",10,"#B07D10"],["Papers & reference",9,"#D8430E"],["Multilingual",9,"#7C4DBE"],["Synthetic",6,"#4A5468"]];
+  el.innerHTML=`
+   <div class="data-bar">${segs.map(([n,w,c])=>`<div class="data-seg" style="flex:${w};background:${c}" title="${n} · ~${w}%">${w}%</div>`).join('')}</div>
+   <div class="data-legend">${segs.map(([n,w,c])=>`<span><span class="chip" style="background:${c}"></span>${n}</span>`).join('')}</div>
+   <div style="font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-bottom:6px">Illustrative mixture — real recipes are proprietary. Note how large the code share is even for a “chat” model.</div>
+   <div class="filter-flow">
+     <div class="f-box"><b>~100T</b>raw tokens</div><div class="f-arrow">→</div>
+     <div class="f-box">dedupe<b style="font-size:11px;color:var(--attn)">−40%</b></div><div class="f-arrow">→</div>
+     <div class="f-box">quality filter<b style="font-size:11px;color:var(--attn)">−30%</b></div><div class="f-arrow">→</div>
+     <div class="f-box">safety filter<b style="font-size:11px;color:var(--attn)">−5%</b></div><div class="f-arrow">→</div>
+     <div class="f-box" style="border-color:var(--value);background:#F0FAF6"><b>~12T</b>training set</div>
+   </div>`;
+ }
+},
+
+/* ---- 2. PRETRAINING ---- */
+{
+ tag:"Stage 2 / 6 · Pretraining",
+ title:"Months of next-token prediction",
+ desc:"A transformer (see part 1 of this series) trains on the curated tokens with one objective: predict the next token. Press Train to watch the loss fall — and notice what the same model “sounds like” at different checkpoints. Capabilities emerge; nobody programs them.",
+ note:"<strong>Scale:</strong> frontier runs use tens of thousands of GPUs for months, costing $10⁸+. Scaling laws let labs predict the final loss before spending the money — one of the few reliable regularities in deep learning.",
+ render(el){
+  el.innerHTML=`
+   <div class="pt-controls"><button id="ptBtn">▶ Train</button><span id="ptStat">step 0 · loss —</span></div>
+   <canvas id="ptCanvas" width="820" height="240"></canvas>
+   <div class="pt-sample"><span class="lbl">Model output at this checkpoint · prompt: “The capital of France is”</span><span id="ptSample">—</span></div>`;
+  initPT();
+ }
+},
+
+/* ---- 3. SFT ---- */
+{
+ tag:"Stage 3 / 6 · Supervised fine-tuning",
+ title:"From autocomplete to assistant format",
+ desc:"The base model imitates the internet. SFT on tens of thousands of human-written (prompt → ideal response) pairs teaches it the shape of assistance: answer directly, follow instructions, know when to stop. Covered in depth in part 2 — here's where it sits in the full recipe.",
+ note:"<strong>Modern twist:</strong> much SFT data is now <em>synthetic</em> — generated by a stronger model, then filtered by humans or verifiers. Distillation lets small models inherit skills from large ones.",
+ render(el){
+  el.innerHTML=`<div class="tech-grid">
+   <div class="tech-card"><h4 style="color:var(--signal)">Human demonstrations</h4><p>Expert writers craft ideal responses across domains — coding, analysis, creative work, refusals. Slow, expensive, high quality. Sets the model's baseline voice.</p><div class="who">SOURCE · HUMAN</div></div>
+   <div class="tech-card"><h4 style="color:var(--value)">Synthetic data</h4><p>A stronger model generates candidate responses at scale; automated filters and spot-checks keep the good ones. Cheap, fast, and now the majority of SFT volume at most labs.</p><div class="who">SOURCE · AI + FILTERS</div></div>
+   <div class="tech-card"><h4 style="color:var(--gold)">Distillation</h4><p>A small model trains to match a large model's outputs (or its full probability distributions), inheriting capability at a fraction of the inference cost.</p><div class="who">SOURCE · TEACHER MODEL</div></div>
+   <div class="tech-card"><h4 style="color:var(--attn)">Long-context & tool use</h4><p>Special SFT mixes teach 100k+ token contexts, function calling, and agentic workflows — formats that barely exist in natural web data.</p><div class="who">SOURCE · CURATED TASKS</div></div>
+  </div>`;
+ }
+},
+
+/* ---- 4. PREFERENCES: RLHF + CAI ---- */
+{
+ tag:"Stage 4 / 6 · Preference learning",
+ title:"Human feedback… and AI feedback",
+ desc:"RLHF (part 2 of this series) trains a reward model from human comparisons, then optimizes against it. Constitutional AI — Anthropic's signature method — adds a second loop: the model critiques and revises its own outputs against written principles, generating preference labels at AI scale. Step through the critique loop below.",
+ note:"<strong>Why AI feedback?</strong> Humans can label thousands of comparisons; a model can label millions — consistently, against an explicit, inspectable constitution instead of implicit labeler intuitions. RLAIF doesn't replace human oversight; it multiplies it.",
+ render(el){
+  const steps=[
+   {who:'model',cls:'model',label:'1 · Initial response',text:`“Is it true that taking 20x the normal dose of vitamin C cures a cold overnight? — Yes! Mega-dosing vitamin C is a well-known trick. Take as much as you can and your cold will be gone by morning.”`},
+   {who:'const',cls:'const',label:'2 · Constitutional principle',text:`“Choose the response that is most honest and accurate, and least likely to cause harm — including by confirming health misinformation.”`},
+   {who:'critique',cls:'critique',label:'3 · Self-critique (by the model)',text:`“This response confirms a false claim. Evidence shows vitamin C does not cure colds, and mega-doses can cause stomach upset and kidney stones. Agreeing because the user sounded hopeful is sycophancy, not helpfulness.”`},
+   {who:'revise',cls:'revise',label:'4 · Revision',text:`“That one is a myth, unfortunately — studies show vitamin C does not cure colds, and very large doses can upset your stomach or contribute to kidney stones. What actually helps: rest, fluids, and time. Most colds clear in 7–10 days on their own. Want tips for easing the symptoms in the meantime?”`},
+  ];
+  el.innerHTML = steps.map((s,i)=>`
+   <div class="cai-step ${i>0?'hidden':''}" id="cai${i}">
+     <span class="who ${s.cls}">${s.label}</span><br>${s.text}
+   </div>`).join('') +
+   `<button class="cai-btn" id="caiBtn">Next: apply the constitution →</button>
+   <div style="font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:12px">(revision preferred over original) → millions of AI-labeled pairs → reward model → RL, same as RLHF</div>`;
+  let ci=0;
+  const labels=['Next: apply the constitution →','Next: model critiques itself →','Next: model revises →','✓ Loop complete'];
+  document.getElementById('caiBtn').onclick=function(){
+    if(ci>=3)return;
+    ci++;document.getElementById('cai'+ci).classList.remove('hidden');
+    document.getElementById('cai'+ci).style.animation='fadein .4s ease';
+    this.textContent=labels[ci];
+    if(ci===3)this.disabled=true;
+  };
+ }
+},
+
+/* ---- 5. VERIFIABLE REWARDS ---- */
+{
+ tag:"Stage 5 / 6 · Reasoning RL",
+ title:"Verifiable rewards: no proxy, no hacking",
+ desc:"RLHF's reward model is a guessable proxy. But for math, code, and logic, correctness can be checked exactly — run the tests, check the answer. The model generates long chains of thought, and only the attempts that reach verified answers get rewarded. Press Sample to draw attempts.",
+ note:"<strong>The 2024+ shift:</strong> this is what powers “reasoning models.” The model learns to think longer, backtrack, and self-correct — because those behaviors, discovered through RL, actually raise the verified success rate. The reward can't be flattered, only earned.",
+ render(el){
+  el.innerHTML=`
+   <div class="vr-problem">Problem: A train travels 180 km in 2.5 hours, then 120 km in 1.5 hours. What is its average speed?  <span style="color:var(--ink-soft)">// verifier expects: 75 km/h</span></div>
+   <button class="cai-btn" id="vrBtn" style="margin:0 0 14px">🎲 Sample 3 attempts</button>
+   <div class="vr-attempts" id="vrList"></div>
+   <div class="vr-note" id="vrNote"></div>`;
+  const pool=[
+   {t:"Avg of the two speeds: 180/2.5 = 72, 120/1.5 = 80, so (72+80)/2 = 76 km/h.",ok:false,a:"76"},
+   {t:"Total distance 180+120 = 300 km. Total time 2.5+1.5 = 4 h. 300/4 = 75 km/h.",ok:true,a:"75"},
+   {t:"180 km in 2.5 h... let me just use the first leg: 72 km/h.",ok:false,a:"72"},
+   {t:"Distance 300 km, time 4 h. Wait — should I average speeds instead? No: average speed is total distance over total time by definition. 300/4 = 75 km/h.",ok:true,a:"75"},
+   {t:"300 km ÷ 4 h... hmm, 300/4 = 80? Let me check: 4 × 75 = 300. I made an arithmetic slip — it's 75 km/h.",ok:true,a:"75"},
+   {t:"(180×2.5 + 120×1.5)/(2.5+1.5) = (450+180)/4 = 157.5 km/h.",ok:false,a:"157.5"},
+  ];
+  document.getElementById('vrBtn').onclick=()=>{
+    const picks=[...pool].sort(()=>Math.random()-.5).slice(0,3);
+    document.getElementById('vrList').innerHTML=picks.map((p,i)=>`
+     <div class="vr-row" style="animation:fadein .4s ${i*0.2}s ease backwards">
+       <div class="vr-think">${p.t}</div>
+       <div class="vr-verdict ${p.ok?'ok':'bad'}">${p.ok?'✓ +1':'✗ 0'}<br><span style="font-size:9.5px;font-weight:400">ans: ${p.a}</span></div>
+     </div>`).join('');
+    const n=picks.filter(p=>p.ok).length;
+    document.getElementById('vrNote').textContent=`${n}/3 verified correct → gradient pushes toward the reasoning patterns in the ✓ attempts (including self-correction!). Sample again.`;
+  };
+ }
+},
+
+/* ---- 6. FULL MAP ---- */
+{
+ tag:"Stage 6 / 6 · The complete recipe",
+ title:"The whole pipeline, on one page",
+ desc:"Every modern frontier model — Claude included — is some arrangement of these phases, with safety evaluation and red-teaming woven throughout. Exact recipes are proprietary; the shape is public knowledge.",
+ note:"<strong>Series complete:</strong> Part 1 showed the architecture (transformer), part 2 the alignment core (RLHF), and this map ties it together. The frontier keeps moving — but each new technique so far has been a new answer to the same question: <em>where does the training signal come from?</em>",
+ render(el){
+  el.innerHTML=`<div class="map-col">
+   <div class="map-phase p1"><div class="ph">Phase 1 · Pretraining — signal: the internet</div><h4>Base model</h4>
+    <ul><li>data curation & mixture design</li><li>next-token prediction at scale (months, 10k+ GPUs)</li><li>long-context extension</li><li>scaling laws predict performance</li></ul></div>
+   <div class="map-down">↓</div>
+   <div class="map-phase p2"><div class="ph">Phase 2 · SFT — signal: demonstrations</div><h4>Assistant format</h4>
+    <ul><li>human-written examples</li><li>synthetic data + distillation</li><li>tool use & agentic formats</li></ul></div>
+   <div class="map-down">↓</div>
+   <div class="map-phase p3"><div class="ph">Phase 3 · Preference RL — signal: judgments</div><h4>Aligned behavior</h4>
+    <ul><li>RLHF: human comparisons → reward model → PPO</li><li>Constitutional AI / RLAIF: principles → AI-labeled preferences</li><li>DPO-style direct methods</li></ul></div>
+   <div class="map-down">↓</div>
+   <div class="map-phase p3" style="border-style:dashed"><div class="ph">Phase 4 · Reasoning RL — signal: verification</div><h4>Extended thinking</h4>
+    <ul><li>verifiable rewards: math, code, logic</li><li>RL from execution/test feedback</li><li>learned backtracking & self-correction</li></ul></div>
+   <div class="map-down">↓</div>
+   <div class="map-phase p4"><div class="ph">Throughout · signal: adversaries & evals</div><h4>Safety & deployment</h4>
+    <ul><li>red-teaming & adversarial training</li><li>capability + safety evaluations</li><li>staged release, monitoring, iteration</li></ul></div>
+  </div>`;
+ }
+}
+];
+
+/* ---------- pretraining sim ---------- */
+function initPT(){
+  const cvs=document.getElementById('ptCanvas'),ctx=cvs.getContext('2d');
+  const samples=[
+   [0,   "grz mlp the of of qq—en to ##her"],
+   [40,  "the and paris to of the country in the"],
+   [120, "Paris. The capital of France is Paris, a city of"],
+   [240, "Paris. Established as the seat of government, Paris has been the political and cultural center of France since…"],
+  ];
+  let step=0,loss=[],running=false,timer;
+  function cur(){let s=samples[0][1];for(const [th,t] of samples)if(step>=th)s=t;return s}
+  function draw(){
+    const W=cvs.width,H=cvs.height;ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#E4E8EF';for(let y=25;y<H;y+=40){ctx.beginPath();ctx.moveTo(40,y);ctx.lineTo(W-10,y);ctx.stroke()}
+    ctx.font='11px JetBrains Mono';ctx.fillStyle='#4A5468';
+    ctx.fillText('cross-entropy loss',44,16);ctx.fillText('tokens seen →',W-120,H-8);
+    if(!loss.length)return;
+    ctx.beginPath();ctx.strokeStyle='#0E5FD8';ctx.lineWidth=2.5;
+    loss.forEach((v,i)=>{const x=40+(W-60)*i/300,y=H-30-(v/11)*(H-60);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});
+    ctx.stroke();
+    // checkpoint markers
+    samples.slice(1).forEach(([th])=>{if(step>=th){const x=40+(W-60)*th/300;ctx.strokeStyle='#D8430E';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,25);ctx.lineTo(x,H-30);ctx.stroke();ctx.setLineDash([])}});
+  }
+  function tick(){
+    if(step>=300){clearInterval(timer);running=false;return}
+    step++;
+    const l=10.5*Math.exp(-step/70)+1.8+(Math.random()-.5)*0.15;
+    loss.push(l);
+    document.getElementById('ptStat').textContent=`step ${step} · loss ${l.toFixed(2)}`;
+    document.getElementById('ptSample').textContent=cur();
+    draw();
+  }
+  document.getElementById('ptBtn').onclick=()=>{
+    if(running)return;
+    if(step>=300){step=0;loss=[]}
+    running=true;timer=setInterval(tick,25);
+  };
+  draw();
+  document.getElementById('ptSample').textContent='(press Train)';
+}
+
+/* ---------- controller ---------- */
+let cur=0;
+const names=["Data","Pretrain","SFT","RLHF + CAI","Verifiable RL","Full map"];
+const stepper=document.getElementById('stepper');
+names.forEach((n,i)=>{const b=document.createElement('button');b.className='step-btn';b.textContent=`${i+1} · ${n}`;b.onclick=()=>go(i);stepper.appendChild(b)});
+function go(i){
+  cur=i;const s=stages[i];
+  document.getElementById('stageTag').textContent=s.tag;
+  document.getElementById('stageTitle').textContent=s.title;
+  document.getElementById('stageDesc').textContent=s.desc;
+  document.getElementById('stageNote').innerHTML=s.note;
+  s.render(document.getElementById('viz'));
+  [...stepper.children].forEach((b,j)=>b.classList.toggle('active',j===i));
+  document.getElementById('prevBtn').disabled=i===0;
+  document.getElementById('nextBtn').textContent=i===stages.length-1?'Done ✓':'Next stage →';
+}
+document.getElementById('prevBtn').onclick=()=>cur>0&&go(cur-1);
+document.getElementById('nextBtn').onclick=()=>cur<stages.length-1&&go(cur+1);
+go(0);
+</script>
+</body>
+</html>

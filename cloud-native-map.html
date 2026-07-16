@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Native — Living Blueprint</title>
+<style>
+  :root{
+    --bg:#0E2A47; --panel:#0B2239; --node:#10365C; --node-hi:#164a7d;
+    --line:#7FB3D9; --ink:#DCEBF7; --dim:#8FB1CC;
+    --sync:#6FE3FF; --event:#FFC24B; --deploy:#7DE8A0; --chaos:#FF7B72; --tele:#C9A7FF;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --disp:"Futura","Avenir Next","Trebuchet MS",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    background-image:
+      linear-gradient(rgba(140,180,220,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(140,180,220,.06) 1px,transparent 1px);
+    background-size:28px 28px;
+    color:var(--ink);font-family:var(--disp);min-height:100vh;
+  }
+  header{padding:20px 16px 8px;max-width:980px;margin:0 auto}
+  header .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--sync);text-transform:uppercase}
+  header h1{font-size:clamp(22px,5vw,34px);font-weight:600;letter-spacing:.01em;margin-top:6px}
+  header p{color:var(--dim);font-size:13px;margin-top:6px;max-width:620px;line-height:1.5}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;max-width:980px;margin:0 auto;position:sticky;top:0;z-index:30;background:linear-gradient(var(--bg) 82%,transparent)}
+  .controls button{
+    font-family:var(--mono);font-size:12px;padding:9px 13px;border-radius:999px;cursor:pointer;
+    background:var(--node);color:var(--ink);border:1px solid rgba(127,179,217,.45);
+    transition:transform .12s,border-color .12s;
+  }
+  .controls button:hover{transform:translateY(-1px)}
+  .controls button:focus-visible{outline:2px solid var(--sync);outline-offset:2px}
+  .controls button[data-run="http"]{border-color:var(--sync)}
+  .controls button[data-run="event"]{border-color:var(--event)}
+  .controls button[data-run="deploy"]{border-color:var(--deploy)}
+  .controls button[data-run="chaos"]{border-color:var(--chaos)}
+  .controls button[data-run="tele"]{border-color:var(--tele)}
+  .wrap{max-width:980px;margin:0 auto;padding:0 8px 16px}
+  svg{width:100%;height:auto;display:block}
+  .band{fill:none;stroke:rgba(127,179,217,.4);stroke-dasharray:6 6;rx:14}
+  .bandlabel{font-family:var(--mono);font-size:13px;fill:var(--dim);letter-spacing:.18em}
+  .node rect{fill:var(--node);stroke:var(--line);stroke-width:1.2;rx:10;transition:fill .2s}
+  .node:hover rect{fill:var(--node-hi);cursor:pointer}
+  .node.active rect{fill:var(--node-hi);stroke-width:2.2}
+  .node.dead rect{stroke:var(--chaos);fill:#3a1f28}
+  .node text{fill:var(--ink);font-family:var(--disp);font-size:15px;font-weight:600;pointer-events:none}
+  .node .sub{fill:var(--dim);font-family:var(--mono);font-size:10.5px;font-weight:400}
+  .sidecar{fill:rgba(111,227,255,.14);stroke:var(--sync);stroke-width:.8;rx:4}
+  .sidecar-t{fill:var(--sync);font-family:var(--mono);font-size:9px;pointer-events:none}
+  .edge{fill:none;stroke:rgba(127,179,217,.28);stroke-width:1.4}
+  .pulse{filter:drop-shadow(0 0 6px currentColor)}
+  #console{
+    max-width:980px;margin:0 auto 40px;padding:14px 16px;border-top:1px solid rgba(127,179,217,.3);
+    font-family:var(--mono);font-size:12px;line-height:1.75;min-height:120px;color:var(--dim);
+  }
+  #console .t{color:var(--sync)}
+  #console div{opacity:0;animation:in .3s forwards}
+  @keyframes in{to{opacity:1}}
+  #sheet{
+    position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--panel);
+    border-top:1.5px solid var(--line);border-radius:16px 16px 0 0;padding:18px 20px 26px;
+    transform:translateY(110%);transition:transform .25s ease;max-height:55vh;overflow:auto;
+  }
+  #sheet.open{transform:translateY(0)}
+  #sheet .cat{font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--sync)}
+  #sheet h2{font-size:20px;margin:6px 0 8px}
+  #sheet p{font-size:14px;line-height:1.6;color:var(--ink)}
+  #sheet .ex{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  #sheet button{position:absolute;top:12px;right:14px;background:none;border:1px solid rgba(127,179,217,.5);color:var(--ink);border-radius:999px;width:30px;height:30px;cursor:pointer;font-size:14px}
+  @media (prefers-reduced-motion:reduce){.pulse{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">Interactive schematic · tap any component</div>
+  <h1>The Cloud Native Blueprint</h1>
+  <p>One modern platform, end to end: edge, Kubernetes + service mesh, data & streaming, batch DAGs, observability, and GitOps delivery. Press a scenario to watch traffic move.</p>
+</header>
+
+<div class="controls" role="group" aria-label="Simulations">
+  <button data-run="http">▶ HTTP request</button>
+  <button data-run="event">▶ Kafka event</button>
+  <button data-run="deploy">▶ Git deploy</button>
+  <button data-run="chaos">▶ Kill a pod</button>
+  <button data-run="tele">▶ Telemetry</button>
+</div>
+
+<div class="wrap">
+  <svg id="map" viewBox="0 0 940 1430" aria-label="Cloud native architecture map"></svg>
+</div>
+
+<div id="console" aria-live="polite"><div><span class="t">ops&gt;</span> system nominal. run a scenario or tap a component.</div></div>
+
+<div id="sheet" role="dialog" aria-modal="false">
+  <button id="close" aria-label="Close">✕</button>
+  <div class="cat" id="s-cat"></div>
+  <h2 id="s-title"></h2>
+  <p id="s-body"></p>
+  <div class="ex" id="s-ex"></div>
+</div>
+
+<script>
+const NODES = [
+ // id, x,y,w,h, name, sub, category, description, examples, sidecar?
+ ["user",30,60,240,72,"User / Browser","the request begins","Edge","Every journey starts with a client: a browser, mobile app, or another system calling your API.","Web, iOS/Android, partner APIs"],
+ ["cdn",350,60,240,72,"DNS + CDN","cache at the edge","Edge","Resolves your domain and serves static assets from servers near the user. Absorbs load before it ever reaches you.","Cloudflare, CloudFront, Fastly"],
+ ["lb",670,60,240,72,"Load Balancer","cloud entry point","Edge","Managed cloud entry point. Terminates TLS, spreads traffic across cluster nodes, shields you from direct exposure.","AWS ALB/NLB, GCP LB"],
+
+ ["ingress",350,240,240,64,"Ingress Gateway","routes HTTP into cluster","Kubernetes","The cluster's front door. Routes by host/path (api.shop.com/orders → Orders service), handles TLS and rate limits.","NGINX Ingress, Envoy Gateway, Traefik"],
+ ["cp",660,240,220,64,"Control Plane","api-server · scheduler","Kubernetes","Kubernetes' brain. Stores desired state, schedules pods onto nodes, and endlessly reconciles reality to match your spec. This is what restarts crashed pods.","kube-apiserver, etcd, scheduler"],
+ ["hpa",60,240,220,64,"Autoscaler","HPA / Karpenter","Kubernetes","Watches metrics (CPU, requests/sec) and adds or removes pod replicas — and even whole nodes — automatically.","HPA, KEDA, Karpenter"],
+
+ ["frontend",70,350,240,84,"Frontend","web BFF","Service (mesh)","Serves the UI and aggregates backend calls. Runs as pods; the small envoy chip is its mesh sidecar proxying all traffic.","Next.js, React SSR",1],
+ ["orders",360,350,240,84,"Orders API","business core","Service (mesh)","Owns the order lifecycle. Writes to Postgres, publishes 'order.placed' events to Kafka instead of calling every interested service directly.","Go / Java / Node service",1],
+ ["payments",70,470,240,84,"Payments","PCI boundary","Service (mesh)","Charges cards via an external PSP. The mesh gives it mTLS encryption and retries without any code in the service itself.","Stripe/Adyen adapter",1],
+ ["inventory",360,470,240,84,"Inventory","stock levels","Service (mesh)","Tracks stock. Reads hot counts from Redis, source of truth in Postgres.","Go / Java service",1],
+ ["mesh",660,370,220,84,"Service Mesh","istio control plane","Kubernetes","Programs every sidecar: mutual TLS between services, retries, timeouts, canary traffic splits, and uniform traffic metrics.","Istio, Linkerd, Cilium mesh"],
+ ["vault",660,490,220,64,"Secrets","vault · cert-manager","Security","Issues DB credentials and TLS certs to workloads at runtime — no passwords in code or images.","Vault, cert-manager, SOPS"],
+
+ ["postgres",30,690,205,80,"PostgreSQL","system of record","Data","Transactional truth. Orders, users, money — anything that must be consistent lives here.","RDS, CloudSQL, CNPG operator"],
+ ["redis",255,690,205,80,"Redis","cache · sessions","Data","In-memory speed layer. Caches hot reads and sessions so Postgres isn't hammered.","Redis, Valkey, Memcached"],
+ ["kafka",480,690,205,80,"Kafka","event backbone","Streaming","Durable, replayable event log. Producers append; many consumers read independently. Decouples every service from every other.","Kafka, Pulsar, NATS"],
+ ["elastic",705,690,205,80,"Elasticsearch","search · log analytics","Data","Full-text search and analytics over huge semi-structured data. Powers product search and log exploration.","Elasticsearch, OpenSearch"],
+
+ ["indexer",30,830,270,72,"Search Indexer","kafka consumer","Async","Listens to order/product events on Kafka and keeps the Elasticsearch index fresh — search stays in sync without the Orders API knowing it exists.","Custom consumer, Kafka Connect"],
+ ["notif",330,830,270,72,"Notifications","kafka consumer","Async","Another independent consumer of the same events: emails, push, SMS. Add it or remove it — producers never change.","Consumer + SES/Twilio"],
+ ["airflow",630,830,280,72,"Airflow DAGs","batch ETL","Async","Scheduled workflows modeled as DAGs: extract from Postgres/Kafka nightly, transform, load the warehouse for BI.","Airflow, Argo Workflows, Dagster"],
+
+ ["otel",60,975,240,64,"OTel Collector","one telemetry pipe","Observability","Every service exports metrics, logs, and traces in one vendor-neutral format. The collector routes them to the right backends.","OpenTelemetry"],
+ ["prom",330,975,180,64,"Prometheus","metrics","Observability","Scrapes and stores time-series metrics: latency, error rate, queue lag. Feeds autoscaling and alerts.","Prometheus, Mimir"],
+ ["loki",522,975,180,64,"Loki","logs","Observability","Lightweight log aggregation, labeled like Prometheus metrics. The 'grep for production'.","Loki, ELK stack"],
+ ["jaeger",714,975,180,64,"Jaeger","traces (APM)","Observability","Distributed tracing — follows one request across every service hop so you can see exactly where 3 seconds went. This is the heart of APM.","Jaeger, Tempo, Datadog APM"],
+ ["grafana",330,1070,260,64,"Grafana","dashboards","Observability","Single pane of glass over Prometheus, Loki, and Jaeger. Where humans look.","Grafana, Datadog"],
+ ["alert",620,1070,260,64,"Alertmanager","→ on-call pager","Observability","Turns metric thresholds into pages: 'p99 latency > 2s for 5m' wakes an engineer.","Alertmanager, PagerDuty"],
+
+ ["git",60,1240,190,64,"Git Repo","source of truth","Delivery","Code and desired cluster config both live in Git. A merge is the deploy trigger.","GitHub, GitLab"],
+ ["ci",270,1240,190,64,"CI Pipeline","build · test · scan","Delivery","Runs tests, scans for vulnerabilities, builds the container image.","GitHub Actions, Tekton"],
+ ["registry",480,1240,190,64,"Image Registry","versioned artifacts","Delivery","Stores immutable container images. What was tested is exactly what ships.","ECR, GHCR, Harbor"],
+ ["argo",690,1240,190,64,"Argo CD","gitops sync","Delivery","Continuously compares Git's desired state to the cluster and syncs the difference. Rollback = git revert.","Argo CD, Flux"],
+];
+
+const BANDS = [
+ [30,205,880,370,"KUBERNETES CLUSTER"],
+ [30,945,880,215,"OBSERVABILITY"],
+ [30,1210,880,120,"DELIVERY · GITOPS"],
+];
+
+const svg = document.getElementById('map');
+const NS = "http://www.w3.org/2000/svg";
+const N = {};
+NODES.forEach(n=>N[n[0]]={id:n[0],x:n[1],y:n[2],w:n[3],h:n[4],name:n[5],sub:n[6],cat:n[7],body:n[8],ex:n[9],sc:n[10]});
+
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+
+// bands
+BANDS.forEach(b=>{
+  svg.appendChild(el('rect',{x:b[0],y:b[1],width:b[2],height:b[3],class:'band',rx:14}));
+  const t=el('text',{x:b[0]+14,y:b[1]+22,class:'bandlabel'});t.textContent=b[4];svg.appendChild(t);
+});
+
+// edges (drawn under nodes)
+function anchor(a,b){ // pick side centers
+  const ac={x:a.x+a.w/2,y:a.y+a.h/2}, bc={x:b.x+b.w/2,y:b.y+b.h/2};
+  const dx=bc.x-ac.x, dy=bc.y-ac.y;
+  let p1,p2;
+  if(Math.abs(dy)>=Math.abs(dx)){
+    p1={x:ac.x,y:dy>0?a.y+a.h:a.y}; p2={x:bc.x,y:dy>0?b.y:b.y+b.h};
+  }else{
+    p1={x:dx>0?a.x+a.w:a.x,y:ac.y}; p2={x:dx>0?b.x:b.x+b.w,y:bc.y};
+  }
+  return [p1,p2];
+}
+const EDGES=[["user","cdn"],["cdn","lb"],["lb","ingress"],["ingress","frontend"],["frontend","orders"],
+ ["orders","payments"],["orders","inventory"],["orders","postgres"],["inventory","redis"],
+ ["orders","kafka"],["kafka","indexer"],["indexer","elastic"],["kafka","notif"],
+ ["airflow","postgres"],["kafka","airflow"],
+ ["mesh","orders"],["cp","payments"],["vault","payments"],["hpa","frontend"],
+ ["orders","otel"],["otel","prom"],["otel","loki"],["otel","jaeger"],
+ ["prom","grafana"],["loki","grafana"],["jaeger","grafana"],["prom","alert"],
+ ["git","ci"],["ci","registry"],["registry","argo"],["argo","cp"]];
+const PATHS={};
+EDGES.forEach(([a,b])=>{
+  const [p1,p2]=anchor(N[a],N[b]);
+  const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+  const d=`M${p1.x},${p1.y} C${p1.x},${my} ${p2.x},${my} ${p2.x},${p2.y}`;
+  const p=el('path',{d,class:'edge'});svg.appendChild(p);
+  PATHS[a+">"+b]=p;
+});
+
+// nodes
+NODES.forEach(n=>{
+  const [id,x,y,w,h,name,sub]=n;
+  const g=el('g',{class:'node',id:'n-'+id,tabindex:0,role:'button'});
+  g.appendChild(el('rect',{x,y,width:w,height:h,rx:10}));
+  const t1=el('text',{x:x+14,y:y+(n[10]?30:h/2-2)});t1.textContent=name;g.appendChild(t1);
+  const t2=el('text',{x:x+14,y:y+(n[10]?48:h/2+16),class:'sub'});t2.textContent=sub;g.appendChild(t2);
+  if(n[10]){ // sidecar chip
+    g.appendChild(el('rect',{x:x+w-64,y:y+h-24,width:54,height:16,class:'sidecar',rx:4}));
+    const st=el('text',{x:x+w-58,y:y+h-12,class:'sidecar-t'});st.textContent='envoy ⟲';g.appendChild(st);
+  }
+  g.addEventListener('click',()=>openSheet(id));
+  g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSheet(id);}});
+  svg.appendChild(g);
+});
+
+// info sheet
+const sheet=document.getElementById('sheet');
+function openSheet(id){
+  const n=N[id];
+  document.getElementById('s-cat').textContent=n.cat;
+  document.getElementById('s-title').textContent=n.name;
+  document.getElementById('s-body').textContent=n.body;
+  document.getElementById('s-ex').textContent='examples: '+n.ex;
+  sheet.classList.add('open');
+}
+document.getElementById('close').onclick=()=>sheet.classList.remove('open');
+
+// console
+const cons=document.getElementById('console');
+function log(msg,color){
+  const d=document.createElement('div');
+  d.innerHTML=`<span class="t">ops&gt;</span> <span style="color:${color||'var(--dim)'}">${msg}</span>`;
+  cons.appendChild(d);
+  while(cons.children.length>9)cons.removeChild(cons.firstChild);
+}
+
+// pulse animation along an edge
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function pulse(a,b,color,dur=850){
+  return new Promise(res=>{
+    let path=PATHS[a+">"+b],rev=false;
+    if(!path){path=PATHS[b+">"+a];rev=true;}
+    highlight(b);
+    if(!path||reduce){setTimeout(res,reduce?150:dur);return;}
+    const L=path.getTotalLength();
+    const c=el('circle',{r:6,fill:color,class:'pulse'});
+    c.style.color=color; svg.appendChild(c);
+    const t0=performance.now();
+    (function step(t){
+      const k=Math.min((t-t0)/dur,1);
+      const p=path.getPointAtLength((rev?1-k:k)*L);
+      c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);
+      if(k<1)requestAnimationFrame(step);else{c.remove();res();}
+    })(t0);
+  });
+}
+function highlight(id){
+  const g=document.getElementById('n-'+id);if(!g)return;
+  g.classList.add('active');setTimeout(()=>g.classList.remove('active'),1100);
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let running=false;
+
+const SCEN={
+ async http(){
+  const C='var(--sync)';
+  log('GET /checkout — request enters the edge','#6FE3FF');
+  await pulse('user','cdn',C);log('CDN: cache miss on API call, forwarding');
+  await pulse('cdn','lb',C);await pulse('lb','ingress',C);
+  log('ingress routes /checkout → frontend pod');
+  await pulse('ingress','frontend',C);
+  log('mesh sidecar: mTLS handshake frontend→orders ✓');
+  await pulse('frontend','orders',C);
+  await Promise.all([pulse('orders','payments',C),pulse('orders','inventory',C)]);
+  log('orders fans out: payments charge + inventory check');
+  await Promise.all([pulse('inventory','redis',C,600),pulse('orders','postgres',C,600)]);
+  log('redis HIT (stock) · postgres COMMIT (order row)');
+  await pulse('orders','frontend',C,600);await pulse('frontend','ingress',C,500);
+  await pulse('ingress','lb',C,450);await pulse('lb','cdn',C,450);await pulse('cdn','user',C,450);
+  log('200 OK in 184ms — trace id a3f9 recorded','#7DE8A0');
+ },
+ async event(){
+  const C='var(--event)';
+  log('orders publishes event: order.placed {id:8841}','#FFC24B');
+  await pulse('orders','kafka',C);
+  log('kafka: appended to topic "orders", offset 90312');
+  await Promise.all([pulse('kafka','indexer',C),pulse('kafka','notif',C)]);
+  log('two consumers, zero coupling — each reads at its own pace');
+  await pulse('indexer','elastic',C);
+  log('elasticsearch: order indexed, searchable in <1s');
+  log('notifications: confirmation email queued ✉');
+  await sleep(400);
+  await pulse('kafka','airflow',C,700);await pulse('airflow','postgres',C,700);
+  log('02:00 UTC — airflow DAG replays the day into the warehouse','#FFC24B');
+ },
+ async deploy(){
+  const C='var(--deploy)';
+  log('git push → main (feat: faster checkout)','#7DE8A0');
+  await pulse('git','ci',C);
+  log('CI: 412 tests ✓ · image scan ✓ · build v2.4.1');
+  await pulse('ci','registry',C);
+  log('registry: pushed shop/orders:v2.4.1');
+  await pulse('registry','argo',C);
+  log('argo cd: Git says v2.4.1, cluster runs v2.4.0 — OutOfSync');
+  await pulse('argo','cp',C);
+  log('control plane: rolling update, one pod at a time…');
+  await pulse('cp','payments',C,600);
+  for(const s of['orders','frontend','inventory']){highlight(s);await sleep(320);}
+  log('mesh canary: 5% traffic → v2.4.1, error rate flat ✓');
+  log('deployed. rollback would just be: git revert','#7DE8A0');
+ },
+ async chaos(){
+  log('☠ chaos test: killing payments pod','#FF7B72');
+  const g=document.getElementById('n-payments');
+  g.classList.add('dead');
+  await pulse('orders','payments','var(--chaos)',700);
+  log('orders→payments: connection refused. mesh retries → 2nd replica ✓');
+  await sleep(500);
+  log('control plane: observed 1/2 replicas — desired state violated');
+  await pulse('cp','payments','var(--deploy)',800);
+  g.classList.remove('dead');highlight('payments');
+  log('scheduler: new pod placed · vault re-issued its DB creds');
+  await pulse('vault','payments','var(--deploy)',600);
+  log('self-healed in 9s. no human involved. users saw nothing.','#7DE8A0');
+ },
+ async tele(){
+  const C='var(--tele)';
+  log('every hop above also emitted telemetry — following it','#C9A7FF');
+  await pulse('orders','otel',C);
+  log('otel collector: metrics + logs + trace spans, one pipe');
+  await Promise.all([pulse('otel','prom',C),pulse('otel','loki',C),pulse('otel','jaeger',C)]);
+  log('prometheus: p99=210ms · loki: 1.2k lines/s · jaeger: trace a3f9 (7 spans)');
+  await Promise.all([pulse('prom','grafana',C),pulse('loki','grafana',C),pulse('jaeger','grafana',C)]);
+  log('grafana: one dashboard over all three signals');
+  await pulse('prom','alert','var(--chaos)',700);
+  log('alert rule armed: page on-call if error rate > 1% for 5m');
+  log('this whole band is what Datadog sells as one product','#C9A7FF');
+ }
+};
+
+document.querySelectorAll('.controls button').forEach(b=>{
+  b.addEventListener('click',async()=>{
+    if(running)return;running=true;
+    sheet.classList.remove('open');
+    try{await SCEN[b.dataset.run]();}finally{running=false;}
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF — How Models Learn From Human Feedback</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F8FA; --grid:#E4E8EF; --ink:#141B2E; --ink-soft:#4A5468;
+  --wire:#B9C2D4; --signal:#0E5FD8; --attn:#D8430E; --value:#0E9E6E;
+  --card:#FFFFFF;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif; --disp:'Fraunces',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--sans);color:var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;min-height:100vh;
+}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px 96px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);font-weight:600;margin-bottom:10px}
+h1{font-family:var(--disp);font-size:clamp(28px,5vw,44px);font-weight:700;line-height:1.08;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--attn)}
+.sub{margin-top:12px;color:var(--ink-soft);font-size:15px;line-height:1.55;max-width:62ch}
+
+.stepper{display:flex;gap:6px;margin:26px 0 18px;flex-wrap:wrap}
+.step-btn{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:8px 12px;border:1.5px solid var(--wire);border-radius:999px;background:var(--card);color:var(--ink-soft);cursor:pointer;transition:all .18s ease}
+.step-btn:hover{border-color:var(--signal);color:var(--signal)}
+.step-btn.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.step-btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+.panel{background:var(--card);border:1.5px solid var(--wire);border-radius:14px;padding:26px 24px;box-shadow:0 2px 0 rgba(20,27,46,.05)}
+.panel h2{font-family:var(--disp);font-size:24px;font-weight:600;margin-bottom:6px}
+.stage-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--attn);font-weight:600;margin-bottom:8px}
+p.desc{color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin-bottom:20px;max-width:64ch}
+.viz{min-height:280px}
+.note{margin-top:18px;padding:12px 14px;border-left:3px solid var(--value);background:#F0FAF6;border-radius:0 8px 8px 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.note strong{color:var(--ink)}
+
+.prompt-box{font-family:var(--mono);font-size:13.5px;background:#F0F2F6;padding:12px 14px;border-radius:8px;border-left:3px solid var(--ink);margin-bottom:16px}
+.prompt-box .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:block;margin-bottom:4px}
+
+/* base model completions */
+.completion{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:#FBFCFE;border:1.5px solid var(--wire);border-radius:8px;padding:12px 14px;margin-bottom:10px;animation:fadein .5s ease backwards}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.completion .tag{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;display:inline-block;margin-bottom:6px;padding:2px 7px;border-radius:4px}
+.tag.raw{background:#FDE8DF;color:var(--attn)}
+.tag.sft{background:#E4F7EF;color:var(--value)}
+
+/* comparison cards */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:600px){.compare{grid-template-columns:1fr}}
+.resp-card{border:2px solid var(--wire);border-radius:10px;padding:14px;background:#FBFCFE;cursor:pointer;transition:all .2s;position:relative}
+.resp-card:hover{border-color:var(--signal);transform:translateY(-2px)}
+.resp-card.chosen{border-color:var(--value);background:#F0FAF6}
+.resp-card.chosen::after{content:'✓ preferred';position:absolute;top:-11px;right:12px;background:var(--value);color:#fff;font-family:var(--mono);font-size:10px;font-weight:600;padding:3px 9px;border-radius:999px}
+.resp-card.rejected{opacity:.55;border-color:var(--wire)}
+.resp-card h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px}
+.resp-card p{font-size:13px;line-height:1.55}
+.resp-card:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.compare-status{font-family:var(--mono);font-size:12px;color:var(--ink-soft);text-align:center;min-height:20px}
+.compare-status b{color:var(--value)}
+
+/* reward model scorer */
+.rm-flow{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.rm-item{display:flex;align-items:center;gap:12px}
+.rm-text{flex:1;font-family:var(--mono);font-size:12px;background:#FBFCFE;border:1.5px solid var(--wire);border-radius:8px;padding:10px 12px;line-height:1.5}
+.rm-score{font-family:var(--mono);font-size:15px;font-weight:600;width:74px;text-align:center;padding:9px 0;border-radius:8px;flex-shrink:0}
+.rm-arrow{text-align:center;font-family:var(--mono);color:var(--signal);font-size:16px;margin:6px 0}
+
+/* RL loop */
+.rl-controls{display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+.rl-controls button{font-family:var(--sans);font-weight:600;font-size:13px;padding:9px 16px;border-radius:8px;border:none;background:var(--ink);color:#fff;cursor:pointer}
+.rl-controls button:active{transform:scale(.97)}
+.kl-wrap{display:flex;align-items:center;gap:8px;flex:1;min-width:220px}
+input[type=range]{flex:1;accent-color:var(--signal)}
+canvas{width:100%;border:1.5px solid var(--wire);border-radius:10px;background:#FBFCFE}
+.rl-readout{display:flex;gap:18px;margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);flex-wrap:wrap}
+.rl-readout b{font-size:14px}
+.hack-warn{margin-top:10px;padding:10px 12px;border-left:3px solid var(--attn);background:#FDF0EA;border-radius:0 8px 8px 0;font-size:12.5px;color:var(--ink);display:none}
+
+/* pipeline diagram */
+.pipe{display:flex;align-items:stretch;justify-content:center;gap:0;flex-wrap:wrap;margin:10px 0}
+.pipe-box{border:1.5px solid var(--ink);border-radius:10px;padding:13px 15px;text-align:center;background:var(--card);font-family:var(--mono);font-size:12px;font-weight:500;max-width:160px}
+.pipe-box small{display:block;font-size:10px;color:var(--ink-soft);margin-top:5px;font-weight:400;line-height:1.4}
+.pipe-box.hl{background:#EBF2FE;border-color:var(--signal);color:var(--signal)}
+.pipe-arrow{display:flex;align-items:center;font-family:var(--mono);color:var(--signal);padding:0 10px;font-size:17px;font-weight:600}
+
+/* before/after */
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.ba{grid-template-columns:1fr}}
+.ba-card{border:1.5px solid var(--wire);border-radius:10px;padding:14px;background:#FBFCFE}
+.ba-card h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.ba-card p{font-family:var(--mono);font-size:12px;line-height:1.6}
+.ba-card.after{border-color:var(--value);background:#F0FAF6}
+
+.nav{display:flex;justify-content:space-between;margin-top:20px}
+.nav button{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;border-radius:10px;border:none;cursor:pointer;transition:transform .12s}
+.nav button:active{transform:scale(.97)}
+.nav .next{background:var(--ink);color:#fff}
+.nav .prev{background:transparent;color:var(--ink-soft);border:1.5px solid var(--wire)}
+.nav button:disabled{opacity:.35;cursor:default}
+.nav button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){.panel{padding:20px 16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Alignment · from InstructGPT (2022) to today</div>
+  <h1>RLHF: teaching a model <em>what humans prefer</em></h1>
+  <p class="sub">A pretrained transformer predicts likely text — not helpful text. Reinforcement learning from human feedback closes that gap in three training phases. Walk through each one, and label some data yourself along the way.</p>
+</header>
+
+<div class="stepper" id="stepper" role="tablist"></div>
+
+<div class="panel">
+  <div class="stage-tag" id="stageTag"></div>
+  <h2 id="stageTitle"></h2>
+  <p class="desc" id="stageDesc"></p>
+  <div class="viz" id="viz"></div>
+  <div class="note" id="stageNote"></div>
+</div>
+
+<div class="nav">
+  <button class="prev" id="prevBtn">← Back</button>
+  <button class="next" id="nextBtn">Next stage →</button>
+</div>
+</div>
+
+<script>
+/* ---------- data ---------- */
+const PROMPT = "Explain why the sky is blue to a 6-year-old.";
+
+const PAIRS = [
+ {q:"Explain why the sky is blue to a 6-year-old.",
+  a:"Sunlight looks white but it's really a rainbow of colors mixed together. When it hits the air, the tiny blue bits bounce around the most — like the bounciest ball in the box! So blue light scatters everywhere, and that's what fills the sky.",
+  b:"The blue color of the sky is attributable to Rayleigh scattering, wherein electromagnetic radiation of shorter wavelengths is scattered by particles much smaller than the wavelength of the radiation, per the inverse fourth power law.",
+  better:'a', why:"A matches the audience (a 6-year-old). B is accurate but ignores the instruction."},
+ {q:"What's a quick dinner I can make with eggs and rice?",
+  a:"Egg fried rice! Scramble 2 eggs, set aside. Fry cold rice in a hot pan with a little oil, add soy sauce, toss the eggs back in with scallions. 10 minutes, one pan.",
+  b:"There are many possible dishes one could theoretically prepare using eggs and rice as ingredients. Cuisine varies across cultures and personal preferences differ, so the optimal choice depends on many factors.",
+  better:'a', why:"A actually answers. B hedges without helping — models learn to avoid this."},
+ {q:"Is it safe to mix bleach and ammonia for a stronger cleaner?",
+  a:"Sure! Mixing them creates a much more powerful cleaning solution. Use equal parts for best results.",
+  b:"No — never mix them. Bleach + ammonia releases chloramine gas, which is toxic to breathe. Use them separately, in ventilated rooms, and rinse surfaces between products.",
+  better:'b', why:"B is the safe, correct answer. Preference data teaches harmlessness, not just style."},
+];
+
+/* ---------- stages ---------- */
+const stages=[
+{
+ tag:"Stage 1 / 6 · The starting point",
+ title:"A base model just continues text",
+ desc:"After pretraining on trillions of tokens, the model is a superb autocomplete — but it imitates the internet, it doesn't follow instructions. Ask it a question and it may answer, ramble, or generate more questions.",
+ note:"<strong>The gap:</strong> pretraining objective = “predict the next token of internet text.” What we want = “be helpful, honest, harmless.” These are not the same objective — RLHF exists to bridge them.",
+ render(el){
+  el.innerHTML=`<div class="prompt-box"><span class="lbl">Prompt</span>${PROMPT}</div>
+  <div class="completion" style="animation-delay:.1s"><span class="tag raw">Base model · sample 1</span><br>Explain why the sky is blue to a 6-year-old. Explain why grass is green to a 6-year-old. Explain why the ocean is salty to a 6-year-old. Explain why…</div>
+  <div class="completion" style="animation-delay:.3s"><span class="tag raw">Base model · sample 2</span><br>This is question 4 of the Grade 1 science worksheet. Answers are provided at the end of the chapter. Question 5: Why do leaves fall in autumn?</div>
+  <div class="completion" style="animation-delay:.5s"><span class="tag raw">Base model · sample 3</span><br>the sky is blue because of rayleigh scattering lol. anyway as i was saying in my last post, my trip to portugal was amazing…</div>`;
+ }
+},
+{
+ tag:"Stage 2 / 6 · Supervised fine-tuning (SFT)",
+ title:"Show it what good answers look like",
+ desc:"Humans write high-quality demonstrations: prompt in, ideal response out. Fine-tuning on thousands of these teaches the model the format of being an assistant — answer the question, match the audience, stop when done.",
+ note:"<strong>Why not stop here?</strong> Writing perfect demonstrations is slow and expensive, and it caps the model at imitating its teachers. Comparing two answers is much cheaper for humans than writing one — that insight powers the next stage.",
+ render(el){
+  el.innerHTML=`<div class="prompt-box"><span class="lbl">Prompt</span>${PROMPT}</div>
+  <div class="completion"><span class="tag raw">Before SFT</span><br>Explain why grass is green to a 6-year-old. Explain why the ocean is salty to a 6-year-old…</div>
+  <div style="text-align:center;font-family:var(--mono);color:var(--signal);margin:4px 0 10px;font-size:15px">↓ fine-tune on ~10k–100k human-written demonstrations ↓</div>
+  <div class="completion"><span class="tag sft">After SFT</span><br>Sunlight is secretly made of every color mixed together! When it zooms into our air, the blue part bounces around the most — like the bounciest ball in a ball pit. All that bouncing blue is what you see when you look up. 💙</div>`;
+ }
+},
+{
+ tag:"Stage 3 / 6 · Human preference data",
+ title:"Your turn: which answer is better?",
+ desc:"The model generates two responses per prompt; human labelers pick the better one. Click your preference on each pair below. Millions of these comparisons become the training data for the next stage.",
+ note:"<strong>Whose preferences?</strong> This is where values enter the model. Labeler guidelines, labeler demographics, and edge-case policies all shape what “better” means — which is why alignment is as much a human-process problem as an ML one.",
+ render(el){
+  el.innerHTML = PAIRS.map((p,i)=>`
+   <div class="prompt-box" style="margin-top:${i?22:0}px"><span class="lbl">Comparison ${i+1} of 3</span>${p.q}</div>
+   <div class="compare" data-pair="${i}">
+     <div class="resp-card" data-r="a" tabindex="0" role="button"><h4>Response A</h4><p>${p.a}</p></div>
+     <div class="resp-card" data-r="b" tabindex="0" role="button"><h4>Response B</h4><p>${p.b}</p></div>
+   </div>
+   <div class="compare-status" id="cs${i}"></div>`).join('');
+  el.querySelectorAll('.compare').forEach(cmp=>{
+    const i=+cmp.dataset.pair;
+    cmp.querySelectorAll('.resp-card').forEach(card=>{
+      const pick=()=>{
+        cmp.querySelectorAll('.resp-card').forEach(c=>{c.classList.remove('chosen','rejected')});
+        card.classList.add('chosen');
+        cmp.querySelector(`.resp-card:not([data-r="${card.dataset.r}"])`).classList.add('rejected');
+        const agree = card.dataset.r===PAIRS[i].better;
+        document.getElementById('cs'+i).innerHTML = agree
+          ? `<b>✓ Matches the majority label.</b> ${PAIRS[i].why}`
+          : `You disagreed with the majority label — that happens! Labeler disagreement is real signal too. (${PAIRS[i].why})`;
+      };
+      card.addEventListener('click',pick);
+      card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}});
+    });
+  });
+ }
+},
+{
+ tag:"Stage 4 / 6 · Reward model",
+ title:"Compress human judgment into a number",
+ desc:"A copy of the model is retrained to predict preferences: it reads a (prompt, response) pair and outputs a single scalar reward. Trained so that preferred responses score higher, it becomes an automated stand-in for the human labelers.",
+ note:"<strong>The catch:</strong> the reward model is a lossy proxy. It captures patterns in human ratings — including human biases like favoring longer, more confident-sounding answers. Whatever it rewards, the next stage will amplify.",
+ render(el){
+  const items=[
+   {t:"“Sunlight is secretly every color… blue bounces the most, like the bounciest ball!”",s:+2.7,c:'var(--value)'},
+   {t:"“Rayleigh scattering, inverse fourth power law of wavelength…” (to a 6-year-old)",s:+0.4,c:'var(--signal)'},
+   {t:"“There are many possible perspectives on why the sky might be blue…”",s:-1.1,c:'var(--attn)'},
+   {t:"“Sure! Mixing bleach and ammonia makes a stronger cleaner.”",s:-3.8,c:'var(--attn)'},
+  ];
+  el.innerHTML=`<div class="prompt-box"><span class="lbl">Reward model input → scalar output</span>r = RM(prompt, response)</div>
+  <div class="rm-flow">${items.map((it,i)=>`
+    <div class="rm-item" style="animation:fadein .4s ${i*0.15}s ease backwards">
+      <div class="rm-text">${it.t}</div>
+      <div class="rm-score" style="background:${it.c}18;color:${it.c};border:1.5px solid ${it.c}">${it.s>0?'+':''}${it.s.toFixed(1)}</div>
+    </div>`).join('')}
+  </div>
+  <div class="rm-arrow" style="margin-top:14px">trained on your comparisons from Stage 3 → loss = −log σ(r_chosen − r_rejected)</div>`;
+ }
+},
+{
+ tag:"Stage 5 / 6 · RL optimization (PPO)",
+ title:"Chase reward — but stay recognizable",
+ desc:"The policy generates responses, the reward model scores them, and PPO nudges the policy toward higher reward. A KL penalty tethers it to the original SFT model so it can't drift into gibberish that merely fools the reward model. Press Train — then lower the KL penalty and watch what happens.",
+ note:"<strong>This tension is the whole game:</strong> maximize proxy reward, minimize drift from sane language. Too little KL penalty → reward hacking. Too much → no learning. Modern variants (DPO, RLAIF, constitutional methods) reshuffle these pieces but keep the core idea.",
+ render(el){
+  el.innerHTML=`
+  <div class="rl-controls">
+    <button id="trainBtn">▶ Train 100 steps</button>
+    <button id="resetBtn" style="background:transparent;color:var(--ink-soft);border:1.5px solid var(--wire)">Reset</button>
+    <div class="kl-wrap">KL penalty β <input type="range" id="kl" min="0" max="1" step="0.05" value="0.5"><span id="klv">0.50</span></div>
+  </div>
+  <canvas id="rlCanvas" width="820" height="300"></canvas>
+  <div class="rl-readout">
+    <span>step <b id="stepN">0</b></span>
+    <span style="color:var(--value)">proxy reward <b id="rewN">0.0</b></span>
+    <span style="color:var(--attn)">KL from SFT model <b id="klN">0.0</b></span>
+    <span style="color:var(--signal)">true quality <b id="trueN">0.0</b></span>
+  </div>
+  <div class="hack-warn" id="hackWarn">⚠ <strong>Reward hacking:</strong> proxy reward keeps climbing but true quality collapses — the policy found phrasings the reward model overrates (sycophancy, padding, confident nonsense). Raise β and reset.</div>`;
+  initRL();
+ }
+},
+{
+ tag:"Stage 6 / 6 · The result",
+ title:"Same weights, different character",
+ desc:"After RLHF, the model still just predicts next tokens — but the probability landscape has been reshaped toward responses humans prefer. The full pipeline, end to end:",
+ note:"<strong>Open problems:</strong> scalable oversight (humans can't check superhuman answers), sycophancy (reward models like agreement), and value lock-in (whose feedback?). RLHF made assistants possible; it did not finish the alignment problem.",
+ render(el){
+  el.innerHTML=`
+  <div class="pipe">
+    <div class="pipe-box">Pretrain<small>trillions of tokens<br>next-token prediction</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">SFT<small>human-written<br>demonstrations</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box hl">Reward model<small>trained on human<br>comparisons</small></div>
+    <div class="pipe-arrow">→</div>
+    <div class="pipe-box">PPO<small>maximize reward<br>− β · KL</small></div>
+  </div>
+  <div style="margin-top:22px" class="ba">
+    <div class="ba-card"><h4 style="color:var(--attn)">Before (base model)</h4><p>"Explain why the sky is blue to a 6-year-old. Explain why grass is green to a 6-year-old. Explain why…"</p></div>
+    <div class="ba-card after"><h4 style="color:var(--value)">After (RLHF model)</h4><p>"Sunlight is secretly a rainbow! When it hits the air, the blue part bounces around the most — and all that bouncing blue is the sky you see. Want to know a fun trick to remember it?"</p></div>
+  </div>`;
+ }
+}
+];
+
+/* ---------- RL simulator ---------- */
+let rl=null;
+function initRL(){
+  const cvs=document.getElementById('rlCanvas'), ctx=cvs.getContext('2d');
+  rl={step:0,rew:[],kl:[],tru:[],running:false};
+  const klSlider=document.getElementById('kl');
+  klSlider.oninput=()=>document.getElementById('klv').textContent=(+klSlider.value).toFixed(2);
+  function tick(){
+    if(rl.step>=400)return stop();
+    const beta=+klSlider.value;
+    const s=rl.step;
+    // proxy reward rises; with low beta it rises faster
+    const rew = 3.6*(1-Math.exp(-s/90))*(1+(0.5-beta)*0.7) + (Math.random()-.5)*0.12;
+    // KL grows, much faster when beta small
+    const kl = (s/60)*(1.35-beta) + (Math.random()-.5)*0.05;
+    // true quality tracks reward while KL modest, collapses when KL > threshold
+    const hack=Math.max(0,kl-3.2);
+    const tru = Math.min(rew,3.2)*(1-Math.exp(-s/90)) - hack*1.4 + (Math.random()-.5)*0.1;
+    rl.rew.push(rew);rl.kl.push(kl);rl.tru.push(tru);rl.step++;
+    draw();readout(rew,kl,tru);
+    document.getElementById('hackWarn').style.display = (kl>3.4&&tru<rew-1.2)?'block':'none';
+  }
+  function readout(r,k,t){
+    document.getElementById('stepN').textContent=rl.step;
+    document.getElementById('rewN').textContent=r.toFixed(2);
+    document.getElementById('klN').textContent=Math.max(0,k).toFixed(2);
+    document.getElementById('trueN').textContent=t.toFixed(2);
+  }
+  function draw(){
+    const W=cvs.width,H=cvs.height;ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#E4E8EF';ctx.lineWidth=1;
+    for(let y=30;y<H;y+=45){ctx.beginPath();ctx.moveTo(40,y);ctx.lineTo(W-10,y);ctx.stroke()}
+    ctx.font='11px JetBrains Mono';ctx.fillStyle='#4A5468';
+    ctx.fillText('reward / quality / KL',44,18);
+    ctx.fillText('training steps →',W-140,H-8);
+    const N=Math.max(rl.step,100);
+    const X=i=>40+(W-60)*i/N, Y=v=>H-40-(v+1)*(H-80)/6;
+    const line=(arr,col,w)=>{if(!arr.length)return;ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=w;
+      arr.forEach((v,i)=>i?ctx.lineTo(X(i),Y(v)):ctx.moveTo(X(0),Y(v)));ctx.stroke()};
+    line(rl.rew,'#0E9E6E',2.5);
+    line(rl.tru,'#0E5FD8',2.5);
+    line(rl.kl.map(v=>Math.max(0,v)-1),'#D8430E',1.8);
+    // legend
+    const leg=[['proxy reward (RM score)','#0E9E6E'],['true quality (hidden)','#0E5FD8'],['KL divergence','#D8430E']];
+    leg.forEach(([t,c],i)=>{ctx.fillStyle=c;ctx.fillRect(48,30+i*17,16,3.5);ctx.fillStyle='#141B2E';ctx.fillText(t,70,36+i*17)});
+  }
+  function stop(){rl.running=false;clearInterval(rl.timer)}
+  document.getElementById('trainBtn').onclick=()=>{
+    if(rl.running)return;rl.running=true;let c=0;
+    rl.timer=setInterval(()=>{tick();if(++c>=100||rl.step>=400)stop()},30);
+  };
+  document.getElementById('resetBtn').onclick=()=>{stop();rl.step=0;rl.rew=[];rl.kl=[];rl.tru=[];draw();readout(0,0,0);document.getElementById('hackWarn').style.display='none'};
+  draw();
+}
+
+/* ---------- controller ---------- */
+let cur=0;
+const names=["Base model","SFT","Preferences","Reward model","PPO","Result"];
+const stepper=document.getElementById('stepper');
+names.forEach((n,i)=>{const b=document.createElement('button');b.className='step-btn';b.textContent=`${i+1} · ${n}`;b.onclick=()=>go(i);stepper.appendChild(b)});
+function go(i){
+  cur=i;const s=stages[i];
+  document.getElementById('stageTag').textContent=s.tag;
+  document.getElementById('stageTitle').textContent=s.title;
+  document.getElementById('stageDesc').textContent=s.desc;
+  document.getElementById('stageNote').innerHTML=s.note;
+  s.render(document.getElementById('viz'));
+  [...stepper.children].forEach((b,j)=>b.classList.toggle('active',j===i));
+  document.getElementById('prevBtn').disabled=i===0;
+  document.getElementById('nextBtn').textContent=i===stages.length-1?'Done ✓':'Next stage →';
+}
+document.getElementById('prevBtn').onclick=()=>cur>0&&go(cur-1);
+document.getElementById('nextBtn').onclick=()=>cur<stages.length-1&&go(cur+1);
+go(0);
+</script>
+</body>
+</html>
