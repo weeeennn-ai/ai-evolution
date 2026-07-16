@@ -197,7 +197,7 @@ const stages=[
 {
  tag:"Stage 4 / 6 · Preference learning",
  title:"Human feedback… and AI feedback",
- desc:"RLHF (part 2 of this series) trains a reward model from human comparisons, then optimizes against it. Constitutional AI — Anthropic's signature method — adds a second loop: the model critiques and revises its own outputs against written principles, generating preference labels at AI scale. Step through the critique loop below.",
+ desc:"RLHF (part 2 of this series) trains a reward model from human comparisons, then optimizes against it. Constitutional AI — Anthropic's signature method — adds a second loop: the model critiques and revises its own outputs against written principles, then labels preference comparisons at AI scale. Step through the critique loop below.",
  note:"<strong>Why AI feedback?</strong> Humans can label thousands of comparisons; a model can label millions — consistently, against an explicit, inspectable constitution instead of implicit labeler intuitions. RLAIF doesn't replace human oversight; it multiplies it.",
  render(el){
   const steps=[
@@ -211,7 +211,7 @@ const stages=[
      <span class="who ${s.cls}">${s.label}</span><br>${s.text}
    </div>`).join('') +
    `<button class="cai-btn" id="caiBtn">Next: apply the constitution →</button>
-   <div style="font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:12px">(revision preferred over original) → millions of AI-labeled pairs → reward model → RL, same as RLHF</div>`;
+   <div style="font-family:var(--mono);font-size:11px;color:var(--ink-soft);margin-top:12px">(revisions → supervised fine-tuning) → model judges which of two sampled responses better follows the constitution → millions of AI-labeled pairs → reward model → RL, same as RLHF</div>`;
   let ci=0;
   const labels=['Next: apply the constitution →','Next: model critiques itself →','Next: model revises →','✓ Loop complete'];
   document.getElementById('caiBtn').onclick=function(){
