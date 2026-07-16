@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Supplied-Core Agent — Learning Without Weights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F7F8FA; --grid:#E4E8EF; --ink:#141B2E; --ink-soft:#4A5468;
+  --wire:#B9C2D4; --signal:#0E5FD8; --attn:#D8430E; --value:#0E9E6E; --gold:#B07D10; --purple:#7C4DBE;
+  --card:#FFFFFF;
+  --mono:'JetBrains Mono',monospace; --sans:'Inter',sans-serif; --disp:'Fraunces',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);color:var(--ink);background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;min-height:100vh}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px 96px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--signal);font-weight:600;margin-bottom:10px}
+h1{font-family:var(--disp);font-size:clamp(28px,5vw,42px);font-weight:700;line-height:1.08}
+h1 em{font-style:normal;color:var(--purple)}
+.sub{margin-top:12px;color:var(--ink-soft);font-size:14.5px;line-height:1.55;max-width:62ch}
+
+.stepper{display:flex;gap:6px;margin:26px 0 18px;flex-wrap:wrap}
+.step-btn{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:8px 12px;border:1.5px solid var(--wire);border-radius:999px;background:var(--card);color:var(--ink-soft);cursor:pointer;transition:all .18s}
+.step-btn.active{background:var(--ink);border-color:var(--ink);color:#fff}
+.step-btn:hover:not(.active){border-color:var(--signal);color:var(--signal)}
+
+.panel{background:var(--card);border:1.5px solid var(--wire);border-radius:14px;padding:26px 24px;box-shadow:0 2px 0 rgba(20,27,46,.05)}
+.panel h2{font-family:var(--disp);font-size:24px;font-weight:600;margin-bottom:6px}
+.stage-tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--attn);font-weight:600;margin-bottom:8px}
+p.desc{color:var(--ink-soft);font-size:14.5px;line-height:1.6;margin-bottom:20px;max-width:64ch}
+.viz{min-height:300px}
+.note{margin-top:18px;padding:12px 14px;border-left:3px solid var(--value);background:#F0FAF6;border-radius:0 8px 8px 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}
+.note strong{color:var(--ink)}
+.btn{font-family:var(--sans);font-weight:600;font-size:13.5px;padding:10px 18px;border-radius:9px;border:none;background:var(--ink);color:#fff;cursor:pointer;transition:transform .12s}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:default}
+
+/* stage 1: supplier swap */
+.swap-stage{display:flex;flex-direction:column;align-items:center;gap:0}
+.core-box{border:2px solid var(--purple);border-radius:12px;padding:16px 26px;text-align:center;background:#F5F0FB;font-family:var(--mono);transition:all .4s}
+.core-box b{font-size:16px;color:var(--purple)}
+.core-box small{display:block;font-size:10.5px;color:var(--ink-soft);margin-top:4px}
+.sys-ring{margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;max-width:560px}
+.sys-cell{border:1.5px solid var(--wire);border-radius:9px;padding:10px;text-align:center;font-family:var(--mono);font-size:10.5px;background:#FBFCFE;transition:all .5s}
+.sys-cell b{display:block;font-size:13px;color:var(--value);transition:all .5s}
+.swap-note{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:14px;min-height:20px;text-align:center}
+
+/* stage 2: layers */
+.layers{display:flex;flex-direction:column;gap:7px}
+.layer{border:1.5px solid var(--wire);border-radius:10px;padding:12px 15px;background:#FBFCFE;cursor:pointer;transition:all .2s;display:flex;gap:12px;align-items:baseline}
+.layer:hover{transform:translateX(4px)}
+.layer.open{border-width:2px;background:#fff}
+.layer .ln{font-family:var(--mono);font-size:10px;font-weight:600;flex-shrink:0;width:20px}
+.layer .lt{font-family:var(--mono);font-size:13px;font-weight:600;flex-shrink:0}
+.layer .ld{font-size:12.5px;color:var(--ink-soft);line-height:1.5;display:none}
+.layer.open .ld{display:block}
+.layer .hint{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--wire);flex-shrink:0}
+
+/* stage 3: loop sim */
+.loop-steps{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:16px}
+.lstep{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:8px 11px;border-radius:8px;border:1.5px solid var(--wire);color:var(--ink-soft);background:#FBFCFE;transition:all .25s}
+.lstep.on{border-color:var(--signal);color:#fff;background:var(--signal);transform:scale(1.06)}
+.lstep.ok{border-color:var(--value);color:#fff;background:var(--value)}
+.lstep.bad{border-color:var(--attn);color:#fff;background:var(--attn)}
+.loop-log{font-family:var(--mono);font-size:11.5px;line-height:1.7;background:#FBFCFE;border:1.5px solid var(--wire);border-radius:10px;padding:12px 14px;min-height:120px;max-height:200px;overflow-y:auto;margin-bottom:14px}
+.stores{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:600px){.stores{grid-template-columns:1fr}}
+.store{border:1.5px solid var(--wire);border-radius:10px;padding:11px;background:#FBFCFE;transition:all .3s}
+.store h5{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.store .cnt{font-family:var(--mono);font-size:20px;font-weight:600}
+.store .items{font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);line-height:1.6;margin-top:4px}
+.store.flash{box-shadow:0 0 0 3px rgba(14,158,110,.35);border-color:var(--value)}
+.loop-ctrls{display:flex;gap:10px;justify-content:center;margin-top:16px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--ink-soft);flex-wrap:wrap}
+
+/* stage 4: write access */
+table.acc{border-collapse:collapse;width:100%;font-size:12.5px}
+table.acc th,table.acc td{padding:10px 12px;text-align:center;border-bottom:1px solid var(--grid)}
+table.acc th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+table.acc td:first-child{text-align:left;font-family:var(--mono);font-weight:500;font-size:12px}
+.can{color:var(--value);font-weight:700}
+.cant{color:var(--attn);font-weight:700}
+.gated{color:var(--gold);font-weight:700;font-size:11px}
+.law{margin-top:16px;border:2px solid var(--ink);border-radius:10px;padding:13px 16px;font-size:13.5px;line-height:1.5}
+.law b{font-family:var(--disp)}
+
+/* stage 5: failure cards */
+.fails{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.fails{grid-template-columns:1fr}}
+.fail{border:1.5px solid var(--wire);border-radius:10px;padding:13px;background:#FBFCFE;cursor:pointer;min-height:96px;transition:all .2s}
+.fail h5{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--attn);margin-bottom:6px}
+.fail p{font-size:12px;color:var(--ink-soft);line-height:1.5}
+.fail.flipped{border-color:var(--value);background:#F0FAF6}
+.fail.flipped h5{color:var(--value)}
+.fail .tip{font-family:var(--mono);font-size:9px;color:var(--wire);margin-top:8px;text-transform:uppercase;letter-spacing:.08em}
+
+/* stage 6: ladder + compounds */
+.ladder{display:flex;flex-direction:column-reverse;gap:8px;margin-bottom:22px}
+.rung{border:1.5px solid var(--wire);border-radius:10px;padding:11px 15px;background:#FBFCFE;display:flex;gap:12px;align-items:baseline}
+.rung .lv{font-family:var(--mono);font-size:11px;font-weight:700;flex-shrink:0;width:26px}
+.rung .rt{font-family:var(--mono);font-size:12.5px;font-weight:600;flex-shrink:0}
+.rung .rd{font-size:12px;color:var(--ink-soft)}
+.rung.hot{border-color:var(--gold);background:#FBF6EA}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.two-col{grid-template-columns:1fr}}
+.tc{border-radius:10px;padding:14px}
+.tc h5{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.tc ul{list-style:none;font-family:var(--mono);font-size:11.5px;line-height:2}
+.tc.good{border:1.5px solid var(--value);background:#F0FAF6}
+.tc.good h5{color:var(--value)} .tc.good li::before{content:'▲ ';color:var(--value)}
+.tc.bad{border:1.5px solid var(--attn);background:#FDF6F2}
+.tc.bad h5{color:var(--attn)} .tc.bad li::before{content:'▼ ';color:var(--attn)}
+
+.nav{display:flex;justify-content:space-between;margin-top:20px}
+.nav button{font-family:var(--sans);font-size:14px;font-weight:600;padding:11px 20px;border-radius:10px;border:none;cursor:pointer}
+.nav .next{background:var(--ink);color:#fff}
+.nav .prev{background:transparent;color:var(--ink-soft);border:1.5px solid var(--wire)}
+.nav button:disabled{opacity:.35;cursor:default}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media(max-width:560px){.panel{padding:20px 16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Part 4 · the applied layer</div>
+  <h1>The <em>Supplied-Core</em> Agent</h1>
+  <p class="sub">Self-learning, self-evolving, acting — without changing model weights. The training pipeline from part 3, rebuilt as system architecture: the LLM becomes a supplier, and every learning mechanism moves into text, tools, and gates you control.</p>
+</header>
+
+<div class="stepper" id="stepper"></div>
+
+<div class="panel">
+  <div class="stage-tag" id="stageTag"></div>
+  <h2 id="stageTitle"></h2>
+  <p class="desc" id="stageDesc"></p>
+  <div class="viz" id="viz"></div>
+  <div class="note" id="stageNote"></div>
+</div>
+
+<div class="nav">
+  <button class="prev" id="prevBtn">← Back</button>
+  <button class="next" id="nextBtn">Next →</button>
+</div>
+</div>
+
+<script>
+const stages=[
+
+/* ---------- 1. THESIS ---------- */
+{
+ tag:"1 / 6 · Thesis",
+ title:"The model is a supplier. The system is the asset.",
+ desc:"Hyperscalers will keep shipping stronger base models. Do not compete — depend. The LLM is a supplied core: rented, swappable, upgraded by someone else. Press the button to swap suppliers and watch what happens to the system you built.",
+ note:"<strong>The test of good architecture:</strong> a stronger core must make every layer you own MORE valuable — the same skill file, executed better; the same knowledge, reasoned over deeper. If a model upgrade deletes your work, you built a crutch, not an asset.",
+ render(el){
+  el.innerHTML=`<div class="swap-stage">
+   <div class="core-box" id="coreBox"><b id="coreName">Core v1</b><small>supplied · rented · swappable</small></div>
+   <div style="font-family:var(--mono);color:var(--wire);font-size:16px;padding:6px">↕ plugs into ↕</div>
+   <div class="sys-ring" id="sysRing"></div>
+   <div class="swap-note" id="swapNote"></div>
+   <button class="btn" id="swapBtn" style="margin-top:14px">⇄ Supplier ships a stronger model</button>
+  </div>`;
+  const cells=[["Indexed knowledge","12.4k docs"],["Skill files","38 skills"],["Case library","214 cases"],["Verifiers","9 checks"],["Eval set","120 tasks"],["Episode logs","1.8k runs"]];
+  document.getElementById("sysRing").innerHTML=cells.map(([n,v])=>`<div class="sys-cell"><b>${v}</b>${n}<div style="font-size:9px;color:var(--value);margin-top:3px" class="up" hidden>value ↑</div></div>`).join("");
+  let v=1;
+  document.getElementById("swapBtn").onclick=()=>{
+    v++;
+    document.getElementById("coreName").textContent="Core v"+v;
+    const box=document.getElementById("coreBox");
+    box.style.transform="scale(1.06)";setTimeout(()=>box.style.transform="",400);
+    document.querySelectorAll(".sys-cell").forEach((c,i)=>{
+      setTimeout(()=>{c.style.borderColor="var(--value)";c.querySelector(".up").hidden=false;
+        setTimeout(()=>{c.style.borderColor=""},1200)},i*120);
+    });
+    document.getElementById("swapNote").innerHTML=`Core swapped. <b style="color:var(--value)">All six assets carried over — and each is now worth more.</b> Zero retraining. Zero migration.`;
+  };
+ }
+},
+
+/* ---------- 2. SEVEN LAYERS ---------- */
+{
+ tag:"2 / 6 · Architecture",
+ title:"Seven layers — tap each to open",
+ desc:"Every layer maps to a stage of the LLM training pipeline (part 3), rebuilt at system level. The core reasons; everything else remembers, verifies, and evolves.",
+ note:"<strong>The mapping:</strong> indexed knowledge ≈ pretraining data · skills ≈ SFT · memory ≈ experience replay · verification ≈ reward · reflection + gate ≈ the RL update with its KL tether. Same pipeline, new substrate: text instead of weights.",
+ render(el){
+  const L=[
+   ["L1","Supplied core","var(--purple)","Any capable LLM via API. Interchangeable by design — no layer below may depend on quirks of one model."],
+   ["L2","Indexed knowledge","var(--signal)","The domain corpus, always paired with its index. Knowledge without retrieval is dead weight — the index decides what reaches the core. Grows from human ingestion AND verified agent discoveries, each tagged with origin."],
+   ["L3","Skills","var(--value)","Plain-language procedure files: the system&rsquo;s weights. Versioned like code, loaded per task, the primary surface the agent may propose edits to. Fully readable — open the file, see what the system learned."],
+   ["L4","Memory","var(--gold)","Episode logs (everything, with outcomes) + case library (best solved examples, promoted only after verified success)."],
+   ["L5","Actions","var(--attn)","Tools tiered by reversibility: read → free · reversible write → free, logged · irreversible → verification or human sign-off, with budget limits. Tiers set by humans, never the agent."],
+   ["L6","Verification","var(--ink)","Every episode ends with a verdict. Prefer deterministic checks (unhackable), then model judges (spot-audited), then humans (spent sparingly)."],
+   ["L7","Reflection + gate","var(--attn)","After each episode: what did this teach, and where does it belong? Procedural → skills · factual → knowledge · exemplary → cases. Always a proposed diff, never a direct write. The gate runs the held-out eval: hold → commit, regress → discard."],
+  ];
+  el.innerHTML=`<div class="layers">${L.map((l,i)=>`
+   <div class="layer ${i===0?"open":""}" data-i="${i}" style="border-left:4px solid ${l[2]}">
+     <span class="ln" style="color:${l[2]}">${l[0]}</span>
+     <div><span class="lt">${l[1]}</span><div class="ld">${l[3]}</div></div>
+     <span class="hint">tap</span>
+   </div>`).join("")}</div>`;
+  el.querySelectorAll(".layer").forEach(x=>x.onclick=()=>x.classList.toggle("open"));
+ }
+},
+
+/* ---------- 3. THE LOOP ---------- */
+{
+ tag:"3 / 6 · The loop",
+ title:"Run episodes. Watch the system learn.",
+ desc:"One episode, one verified verdict, at most one accepted edit — routed to the store where it belongs. Every unit of learning is a readable, timestamped diff. Press run a few times.",
+ note:"<strong>Notice the gate rejecting things.</strong> Roughly a third of proposed edits fail the held-out eval — lucky-game overfits, plausible-sounding nonsense. Learning that survives the gate is learning that generalizes. That is the whole discipline.",
+ render(el){
+  el.innerHTML=`
+   <div class="loop-steps" id="lsteps">${["PERCEIVE","PLAN","ACT","VERIFY","REFLECT","GATE","COMMIT"].map(s=>`<span class="lstep" data-s="${s}">${s}</span>`).join("")}</div>
+   <div class="loop-log" id="llog"><span style="color:var(--ink-soft)">Press ▶ to run an episode.</span></div>
+   <div class="stores">
+     <div class="store" id="st-skill"><h5 style="color:var(--value)">Skills</h5><div class="cnt" id="c-skill">3</div><div class="items" id="i-skill">starter procedures ×3</div></div>
+     <div class="store" id="st-know"><h5 style="color:var(--signal)">Indexed knowledge</h5><div class="cnt" id="c-know">5</div><div class="items" id="i-know">seed corpus ×5</div></div>
+     <div class="store" id="st-case"><h5 style="color:var(--gold)">Case library</h5><div class="cnt" id="c-case">0</div><div class="items" id="i-case">empty</div></div>
+   </div>
+   <div class="loop-ctrls">
+     <button class="btn" id="runEp">▶ Run episode</button>
+     <span>episodes: <b id="epN">0</b> · edits committed: <b id="edN">0</b> · rejected by gate: <b id="rjN">0</b></span>
+   </div>`;
+  initLoop();
+ }
+},
+
+/* ---------- 4. TWO LAWS ---------- */
+{
+ tag:"4 / 6 · Governance",
+ title:"Who may write to what",
+ desc:"The entire safety story is a write-access table. The agent can propose changes to what it has learned — never to what judges it.",
+ note:"<strong>Why this is law, not preference:</strong> RLHF taught us that any optimizer will exploit a corruptible reward. A system that can weaken its own grader produces scores worth nothing. Gates and verifiers are human territory, permanently.",
+ render(el){
+  el.innerHTML=`<table class="acc">
+   <tr><th>Store</th><th>Agent</th><th>Gate required</th><th>Human</th></tr>
+   <tr><td>Skill files</td><td class="can">propose</td><td class="gated">EVAL</td><td class="can">✓</td></tr>
+   <tr><td>Indexed knowledge (facts)</td><td class="can">propose</td><td class="gated">EVAL + stronger bar</td><td class="can">✓</td></tr>
+   <tr><td>Case library</td><td class="can">propose</td><td class="gated">verified wins only</td><td class="can">✓</td></tr>
+   <tr><td>Verifiers &amp; eval sets</td><td class="cant">✗ never</td><td>—</td><td class="can">✓</td></tr>
+   <tr><td>Tool permission tiers</td><td class="cant">✗ never</td><td>—</td><td class="can">✓</td></tr>
+   <tr><td>These rules</td><td class="cant">✗ never</td><td>—</td><td class="can">✓</td></tr>
+  </table>
+  <div class="law"><b>Law 1.</b> The agent edits its skills and knowledge — never its judges.</div>
+  <div class="law" style="margin-top:10px"><b>Law 2.</b> No mutation without evaluation. Facts carry a higher bar than procedures: a false fact masquerades as ground truth in every future retrieval.</div>`;
+ }
+},
+
+/* ---------- 5. FAILURE MODES ---------- */
+{
+ tag:"5 / 6 · Failure modes",
+ title:"Six ways it breaks — tap for the control",
+ desc:"Self-improving systems fail in predictable ways. Each card names the failure; tap to flip to its control.",
+ note:"<strong>The theme:</strong> every failure here is a system-level echo of a training-time pathology — reward hacking, memorization, distribution shift. Knowing the pipeline (parts 1–3) is what lets you see them coming.",
+ render(el){
+  const F=[
+   ["Skill bloat","The reflector loves adding rules; files grow into contradictory sludge.","Size budgets per file + periodic gated consolidation passes: merge, prune, generalize."],
+   ["Memory pollution","One bad case in the library poisons every future retrieval that matches it.","Promote only verified wins; cases carry confidence + date; recent verified beats old unverified."],
+   ["Knowledge contamination","A false fact masquerades as ground truth and compounds silently.","Stronger bar for facts: deterministic or human verification; provenance + expiry; auto-quarantine on traced failures."],
+   ["Verifier gaming","Outputs that satisfy the check but not the intent — ties the numbers by fudging.","Adversarial review of verifiers; independent second checks on high stakes; sampled human audits of passes."],
+   ["Compounding action errors","Step 3&rsquo;s small mistake becomes step 9&rsquo;s disaster.","Verify at checkpoints inside long episodes; irreversible actions go last, after most failures have died in the sandbox."],
+   ["Model-swap drift","A new core reads old skills differently.","Full eval-suite run on every core change before it serves traffic — dependency-upgrade discipline."],
+  ];
+  el.innerHTML=`<div class="fails">${F.map((f,i)=>`
+   <div class="fail" data-i="${i}">
+     <h5 class="fh">⚠ ${f[0]}</h5><p class="fp">${f[1]}</p><div class="tip">tap for control</div>
+   </div>`).join("")}</div>`;
+  el.querySelectorAll(".fail").forEach(card=>{
+    card.onclick=()=>{
+      const i=+card.dataset.i,fl=card.classList.toggle("flipped");
+      card.querySelector(".fh").innerHTML=fl?`✓ Control`:`⚠ ${F[i][0]}`;
+      card.querySelector(".fp").textContent=fl?F[i][2]:F[i][1];
+      card.querySelector(".tip").textContent=fl?"tap for failure":"tap for control";
+    };
+  });
+ }
+},
+
+/* ---------- 6. LADDER + BUILD/SKIP ---------- */
+{
+ tag:"6 / 6 · Roadmap",
+ title:"Earn autonomy. Hoard what compounds.",
+ desc:"Climb one rung at a time — each level is earned only when the one below has become boring. And invest only in assets that appreciate when your supplier improves.",
+ note:"<strong>The closing thesis:</strong> you are not training a model. You are running an institution that rents its brain, writes down everything it learns, refuses to grade its own homework — and gets a free intelligence upgrade every time its supplier ships.",
+ render(el){
+  el.innerHTML=`
+  <div class="ladder">
+   <div class="rung"><span class="lv" style="color:var(--wire)">L1</span><div><span class="rt">Static agent</span> <span class="rd">— hand-written skills + knowledge, no loop. The baseline everything is measured against.</span></div></div>
+   <div class="rung"><span class="lv" style="color:var(--signal)">L2</span><div><span class="rt">+ Memory</span> <span class="rd">— episodes recorded, cases retrieved. Stops re-solving solved problems.</span></div></div>
+   <div class="rung hot"><span class="lv" style="color:var(--gold)">L3</span><div><span class="rt">Gated self-editing</span> <span class="rd">— reflection runs, a human gates every diff. Live here a long time.</span></div></div>
+   <div class="rung"><span class="lv" style="color:var(--value)">L4</span><div><span class="rt">Eval-gated autonomy</span> <span class="rd">— diffs auto-commit on eval pass; humans own the eval set and audit samples.</span></div></div>
+  </div>
+  <div class="two-col">
+   <div class="tc good"><h5>Compounds — build &amp; hoard</h5><ul><li>indexed knowledge</li><li>skill files</li><li>case library</li><li>verifier suite</li><li>eval sets</li><li>episode logs</li></ul></div>
+   <div class="tc bad"><h5>Depreciates — skip</h5><ul><li>prompt chains patching model gaps</li><li>output-format babysitting</li><li>capability workarounds</li><li>anything one release deletes</li></ul></div>
+  </div>`;
+ }
+}
+];
+
+/* ---------- loop simulator ---------- */
+function initLoop(){
+  let ep=0,ed=0,rj=0,busy=false;
+  const skills=["open with info-rich guess","track constraints strictly","prefer domain vocabulary"];
+  const knows=["seed doc 1","seed doc 2","seed doc 3","seed doc 4","seed doc 5"];
+  const cases=[];
+  const SKILL_POOL=["verify totals before formatting","re-read the ask before final step","prefer newest source on conflicts","cite the index entry used","stop when confidence is low and check"];
+  const KNOW_POOL=["source B lags by 2 days","client X uses fiscal-year basis","term sheet v3 supersedes v2","rate reset is quarterly here","feed A drops weekends"];
+  const log=t=>{const d=document.getElementById("llog");d.innerHTML+=t+"<br>";d.scrollTop=d.scrollHeight};
+  const setStep=(s,cls)=>{document.querySelectorAll(".lstep").forEach(x=>{if(x.dataset.s===s){x.className="lstep "+(cls||"on")}})};
+  const clearSteps=()=>document.querySelectorAll(".lstep").forEach(x=>x.className="lstep");
+  const flash=id=>{const s=document.getElementById(id);s.classList.add("flash");setTimeout(()=>s.classList.remove("flash"),900)};
+  const paint=()=>{
+    document.getElementById("c-skill").textContent=skills.length;
+    document.getElementById("c-know").textContent=knows.length;
+    document.getElementById("c-case").textContent=cases.length;
+    document.getElementById("i-skill").textContent=skills.slice(-2).join(" · ")||"empty";
+    document.getElementById("i-know").textContent=knows.slice(-2).join(" · ");
+    document.getElementById("i-case").textContent=cases.slice(-2).join(" · ")||"empty";
+    document.getElementById("epN").textContent=ep;document.getElementById("edN").textContent=ed;document.getElementById("rjN").textContent=rj;
+  };
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  document.getElementById("runEp").onclick=async()=>{
+    if(busy)return;busy=true;clearSteps();
+    document.getElementById("llog").innerHTML="";
+    ep++;
+    log(`<b>— episode ${ep} —</b>`);
+    setStep("PERCEIVE");log(`retrieve: ${Math.min(skills.length,4)} skills + ${Math.min(knows.length,3)} indexed docs + ${Math.min(cases.length,2)} cases → context`);await wait(550);
+    setStep("PLAN");log("plan: 3 steps, irreversible action placed last");await wait(500);
+    setStep("ACT");log("act: tool calls execute in sandbox…");await wait(600);
+    const won=Math.random()<0.75;
+    setStep("VERIFY",won?"ok":"bad");
+    log(won?`verifier: <span style="color:var(--value)">✓ PASS — output ties out exactly</span>`:`verifier: <span style="color:var(--attn)">✗ FAIL — check did not tie</span>`);await wait(600);
+    setStep("REFLECT");
+    const r=Math.random();
+    let kind = r<0.45?"skill":r<0.75?"fact":"case";
+    if(kind==="case"&&!won)kind="skill";
+    const payload = kind==="skill"?SKILL_POOL[Math.floor(Math.random()*SKILL_POOL.length)]
+                  : kind==="fact"?KNOW_POOL[Math.floor(Math.random()*KNOW_POOL.length)]
+                  : `case #${ep} (verified win)`;
+    log(`reflect: learning classified as <b>${kind.toUpperCase()}</b> → propose: &ldquo;${payload}&rdquo;`);await wait(650);
+    setStep("GATE");
+    const bar = kind==="fact"?0.55:0.7; /* facts face a stronger bar */
+    const pass=Math.random()<bar;
+    await wait(650);
+    if(pass){
+      setStep("GATE","ok");setStep("COMMIT","ok");ed++;
+      if(kind==="skill"){skills.push(payload);flash("st-skill")}
+      else if(kind==="fact"){knows.push(payload+" ⌁ep"+ep);flash("st-know")}
+      else{cases.push(payload);flash("st-case")}
+      log(`gate: <span style="color:var(--value)">eval held → COMMITTED to ${kind==="skill"?"skills":kind==="fact"?"indexed knowledge":"case library"}</span>`);
+    }else{
+      setStep("GATE","bad");rj++;
+      log(`gate: <span style="color:var(--attn)">eval regressed → REJECTED (does not generalize${kind==="fact"?"; facts face a stronger bar":""})</span>`);
+    }
+    paint();busy=false;
+  };
+  paint();
+}
+
+/* ---------- controller ---------- */
+let cur=0;
+const names=["Thesis","7 layers","The loop","Two laws","Failures","Roadmap"];
+const stepper=document.getElementById("stepper");
+names.forEach((n,i)=>{const b=document.createElement("button");b.className="step-btn";b.textContent=(i+1)+" · "+n;b.onclick=()=>go(i);stepper.appendChild(b)});
+function go(i){
+  cur=i;const s=stages[i];
+  document.getElementById("stageTag").textContent=s.tag;
+  document.getElementById("stageTitle").textContent=s.title;
+  document.getElementById("stageDesc").textContent=s.desc;
+  document.getElementById("stageNote").innerHTML=s.note;
+  s.render(document.getElementById("viz"));
+  [...stepper.children].forEach((b,j)=>b.classList.toggle("active",j===i));
+  document.getElementById("prevBtn").disabled=i===0;
+  document.getElementById("nextBtn").textContent=i===stages.length-1?"Done ✓":"Next →";
+}
+document.getElementById("prevBtn").onclick=()=>cur>0&&go(cur-1);
+document.getElementById("nextBtn").onclick=()=>cur<stages.length-1&&go(cur+1);
+go(0);
+</script>
+</body>
+</html>
