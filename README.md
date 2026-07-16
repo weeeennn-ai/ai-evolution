@@ -11,8 +11,9 @@ A collection of self-contained, interactive HTML visualizations telling the stor
 | 3 | **Training** — how an LLM becomes an LLM | [how-llm-becomes-llm_1.html](how-llm-becomes-llm_1.html) |
 | 4 | **Alignment** — RLHF, learning from human feedback | [rlhf-visualized.html](rlhf-visualized.html) |
 | 5 | **Applications** — the AI-native living blueprint | [ai-native-map_3.html](ai-native-map_3.html) |
+| 6 | **Agents** — the supplied-core agent, learning without weights | [supplied-core-agent.html](supplied-core-agent.html) |
 
-Also included: [supplied-core-agent-framework.md](supplied-core-agent-framework.md) — a written framework for self-learning agents built around a swappable LLM core.
+Also included: [supplied-core-agent-framework.md](supplied-core-agent-framework.md) — the written framework behind perspective 6.
 
 ## Running
 
