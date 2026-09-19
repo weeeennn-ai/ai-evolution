@@ -340,6 +340,7 @@ const stepper=document.getElementById('stepper');
 names.forEach((n,i)=>{const b=document.createElement('button');b.className='step-btn';b.textContent=`${i+1} · ${n}`;b.onclick=()=>go(i);stepper.appendChild(b)});
 function go(i){
   cur=i;const s=stages[i];
+  if(rl&&rl.timer){clearInterval(rl.timer);rl.timer=null;rl.running=false}
   document.getElementById('stageTag').textContent=s.tag;
   document.getElementById('stageTitle').textContent=s.title;
   document.getElementById('stageDesc').textContent=s.desc;
